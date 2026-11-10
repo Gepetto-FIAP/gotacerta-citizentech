@@ -4,52 +4,52 @@ import React, { useEffect, useState } from "react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-type Tab = "dashboard" | "detalhe" | "alertas" | "cadastro" | "login";
+type Tab = "dashboard" | "historico" | "alertas" | "cadastro" | "gestor" | "login";
 
 export default function GotaCertaMobileApp() {
   const [activeTab, setActiveTab] = useState<Tab>("dashboard");
   const [imoveis, setImoveis] = useState<any[]>([]);
+  const [selectedImovelId, setSelectedImovelId] = useState<number>(1);
+  const [dashImovel, setDashImovel] = useState<any | null>(null);
+  const [historicoDiario, setHistoricoDiario] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
-  const [leituras, setLeituras] = useState<any[]>([]);
-  const [selectedImovel, setSelectedImovel] = useState<any | null>(null);
+  const [bairrosAlertas, setBairrosAlertas] = useState<any[]>([]);
   const [usuarioLogado, setUsuarioLogado] = useState<any | null>(null);
   const [feedback, setFeedback] = useState<{ tipo: "sucesso" | "erro"; texto: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Estados do formulário de Login (Parte 5 - Vitória)
+  // Login (Página 19 - Vitória)
   const [email, setEmail] = useState("maria.silva@email.com");
   const [senha, setSenha] = useState("GotaCerta@2026");
 
-  // Estados do formulário de Cadastro de Imóvel (Parte 4 - Tela de Cadastro)
+  // Cadastro de Imóvel/Hidrômetro (Página 20 - Danilo)
   const [apelidoLocal, setApelidoLocal] = useState("");
-  const [tipoImovel, setTipoImovel] = useState("RESIDENCIAL");
   const [endereco, setEndereco] = useState("");
   const [bairro, setBairro] = useState("Jardim Pantanal");
   const [cep, setCep] = useState("08090-100");
   const [hidrometro, setHidrometro] = useState("");
+  const [metaMensal, setMetaMensal] = useState(10000);
 
-  async function carregarDados() {
+  async function carregarTudo(idImovel = selectedImovelId) {
     setLoading(true);
     try {
-      const [resImoveis, resAlertas, resLeituras] = await Promise.all([
+      const [resImoveis, resDash, resHist, resAlertas, resBairros] = await Promise.all([
         fetch(`${API_BASE}/api/imoveis`),
+        fetch(`${API_BASE}/api/imoveis/${idImovel}/dashboard`),
+        fetch(`${API_BASE}/api/imoveis/${idImovel}/historico`),
         fetch(`${API_BASE}/api/alertas`),
-        fetch(`${API_BASE}/api/leituras?limit=15`),
+        fetch(`${API_BASE}/api/bairros/alertas`),
       ]);
-      if (!resImoveis.ok) throw new Error("Falha ao consultar API");
-      const dataImoveis = await resImoveis.json();
-      const dataAlertas = await resAlertas.json();
-      const dataLeituras = await resLeituras.json();
-      setImoveis(dataImoveis);
-      setAlertas(dataAlertas);
-      setLeituras(dataLeituras);
-      if (!selectedImovel && dataImoveis.length > 0) {
-        setSelectedImovel(dataImoveis[0]);
-      }
+      if (!resImoveis.ok) throw new Error("Sem conexão com a API");
+      setImoveis(await resImoveis.json());
+      if (resDash.ok) setDashImovel(await resDash.json());
+      if (resHist.ok) setHistoricoDiario(await resHist.json());
+      if (resAlertas.ok) setAlertas(await resAlertas.json());
+      if (resBairros.ok) setBairrosAlertas(await resBairros.json());
     } catch {
       setFeedback({
         tipo: "erro",
-        texto: "Modo Offline / Sem conexão com a API em " + API_BASE,
+        texto: `Erro de conexão com a API (${API_BASE}). Verifique se o back-end está no ar.`,
       });
     } finally {
       setLoading(false);
@@ -57,8 +57,8 @@ export default function GotaCertaMobileApp() {
   }
 
   useEffect(() => {
-    carregarDados();
-  }, []);
+    carregarTudo(selectedImovelId);
+  }, [selectedImovelId]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -72,19 +72,19 @@ export default function GotaCertaMobileApp() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.erro || "Credenciais inválidas");
       setUsuarioLogado(data);
-      setFeedback({ tipo: "sucesso", texto: `Bem-vindo(a), ${data.nome} (${data.perfil})!` });
-      setActiveTab("dashboard");
+      setFeedback({ tipo: "sucesso", texto: `Autenticado como ${data.nome} (${data.perfil})` });
+      setActiveTab(data.perfil === "ADMIN" ? "gestor" : "dashboard");
     } catch (err: any) {
       setFeedback({ tipo: "erro", texto: err.message });
     }
   }
 
-  async function handleResolverAlerta(id: number) {
+  async function handleConfirmarReparo(alertaId: number) {
     try {
-      const res = await fetch(`${API_BASE}/api/alertas/${id}/resolver`, { method: "PUT" });
-      if (!res.ok) throw new Error("Não foi possível atualizar o alerta.");
-      setFeedback({ tipo: "sucesso", texto: "Vazamento marcado como reparado com sucesso!" });
-      carregarDados();
+      const res = await fetch(`${API_BASE}/api/alertas/${alertaId}`, { method: "PUT" });
+      if (!res.ok) throw new Error("Falha ao confirmar reparo.");
+      setFeedback({ tipo: "sucesso", texto: "Reparo confirmado! Alerta marcado como resolvido." });
+      carregarTudo();
     } catch (err: any) {
       setFeedback({ tipo: "erro", texto: err.message });
     }
@@ -99,22 +99,19 @@ export default function GotaCertaMobileApp() {
         body: JSON.stringify({
           usuarioId: usuarioLogado?.usuarioId || 2,
           apelidoLocal,
-          tipoImovel,
           endereco,
           bairro,
           cep,
           numeroSerieHidrometro: hidrometro,
-          metaConsumoMensalLitros: 12000,
-          capacidadeCaixaLitros: 1000,
-          moradoresAtendidos: 4,
+          metaConsumoMensalLitros: Number(metaMensal),
         }),
       });
-      if (!res.ok) throw new Error("Erro ao cadastrar hidrômetro. Verifique os campos.");
+      if (!res.ok) throw new Error("Dados inválidos ao cadastrar imóvel.");
       setApelidoLocal("");
       setEndereco("");
       setHidrometro("");
-      setFeedback({ tipo: "sucesso", texto: "Imóvel e hidrômetro cadastrados na API!" });
-      await carregarDados();
+      setFeedback({ tipo: "sucesso", texto: "Hidrômetro cadastrado com sucesso!" });
+      await carregarTudo();
       setActiveTab("dashboard");
     } catch (err: any) {
       setFeedback({ tipo: "erro", texto: err.message });
@@ -123,25 +120,23 @@ export default function GotaCertaMobileApp() {
 
   return (
     <div className="flex flex-col flex-1 justify-between">
-      {/* Header Mobile */}
+      {/* Header */}
       <header className="bg-cyan-950/80 border-b border-cyan-800/50 p-4 flex items-center justify-between">
         <div>
-          <span className="text-xs uppercase tracking-widest text-cyan-400 font-semibold">
-            CitizenTech · FIAP GS
+          <span className="text-[10px] uppercase tracking-widest text-cyan-400 font-semibold">
+            Não trocamos o hidrômetro · Ensinamos ele a falar
           </span>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            💧 GotaCerta
-          </h1>
+          <h1 className="text-xl font-bold text-white">💧 Gota Certa</h1>
         </div>
         <button
           onClick={() => setActiveTab("login")}
           className="text-xs px-3 py-1.5 rounded-full bg-cyan-800/60 hover:bg-cyan-700 text-cyan-100 border border-cyan-600"
         >
-          {usuarioLogado ? `${usuarioLogado.perfil}` : "Entrar (JWT)"}
+          {usuarioLogado ? `${usuarioLogado.perfil}` : "Login JWT"}
         </button>
       </header>
 
-      {/* Banner de Feedback de Ações e Conexão */}
+      {/* Banner de Feedback */}
       {feedback && (
         <div
           className={`mx-4 mt-3 p-3 rounded-lg text-xs font-medium flex justify-between items-center ${
@@ -157,141 +152,136 @@ export default function GotaCertaMobileApp() {
         </div>
       )}
 
-      {/* Conteúdo Principal das 5 Telas */}
+      {/* Conteúdo Principal */}
       <main className="flex-1 p-4 overflow-y-auto space-y-4">
-        {/* TELA 1: LISTA & DASHBOARD DE HIDRÔMETROS */}
-        {activeTab === "dashboard" && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-                Imóveis & Hidrômetros ({imoveis.length})
-              </h2>
-              <button
-                onClick={carregarDados}
-                className="text-xs text-cyan-400 hover:underline"
-              >
-                {loading ? "Atualizando..." : "↻ Atualizar"}
-              </button>
-            </div>
-
-            {imoveis.map((imovel) => {
-              const temAlerta = imovel.alertas && imovel.alertas.length > 0;
-              return (
-                <div
-                  key={imovel.id}
-                  onClick={() => {
-                    setSelectedImovel(imovel);
-                    setActiveTab("detalhe");
-                  }}
-                  className={`p-4 rounded-xl border cursor-pointer transition ${
-                    temAlerta
-                      ? "bg-rose-950/30 border-rose-700/70 hover:bg-rose-950/50"
-                      : "bg-slate-800/60 border-slate-700 hover:bg-slate-800"
-                  }`}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-slate-700 text-slate-300">
-                        {imovel.tipoImovel}
-                      </span>
-                      <h3 className="font-bold text-base mt-1 text-white">
-                        {imovel.apelidoLocal}
-                      </h3>
-                      <p className="text-xs text-slate-400">
-                        {imovel.endereco} · {imovel.bairro}
-                      </p>
-                    </div>
-                    <span
-                      className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
-                        temAlerta
-                          ? "bg-rose-600 text-white"
-                          : "bg-emerald-800/60 text-emerald-300"
-                      }`}
-                    >
-                      {temAlerta ? `🚨 ${imovel.alertas.length} Alerta` : "Normal"}
-                    </span>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-slate-700/60 flex justify-between text-xs text-slate-300">
-                    <span>Hidrômetro: {imovel.numeroSerieHidrometro}</span>
-                    <span className="text-cyan-400 font-medium">Ver telemetria →</span>
-                  </div>
-                </div>
-              );
-            })}
+        {/* Seletor Rápido de Imóvel */}
+        {(activeTab === "dashboard" || activeTab === "historico") && (
+          <div className="flex items-center justify-between gap-2">
+            <select
+              value={selectedImovelId}
+              onChange={(e) => setSelectedImovelId(Number(e.target.value))}
+              className="flex-1 p-2 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white"
+            >
+              {imoveis.map((im) => (
+                <option key={im.id} value={im.id}>
+                  {im.apelidoLocal} ({im.numeroSerieHidrometro})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => carregarTudo()}
+              className="text-xs px-2.5 py-2 rounded-lg bg-slate-800 text-cyan-400 border border-slate-700"
+            >
+              {loading ? "..." : "↻"}
+            </button>
           </div>
         )}
 
-        {/* TELA 2: DETALHE DA TELEMETRIA DO HIDRÔMETRO (UNICAMP) */}
-        {activeTab === "detalhe" && selectedImovel && (
+        {/* TELA 1: DASHBOARD DO HIDRÔMETRO (Litros, Reais estimados, Vazão L/min e Meta) */}
+        {activeTab === "dashboard" && dashImovel && (
           <div className="space-y-4">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className="text-xs text-cyan-400 hover:underline"
-            >
-              ← Voltar para lista de imóveis
-            </button>
-            <div className="p-4 rounded-xl bg-slate-800 border border-slate-700">
-              <h2 className="text-lg font-bold text-white">{selectedImovel.apelidoLocal}</h2>
-              <p className="text-xs text-slate-400">
-                Hidrômetro Série: {selectedImovel.numeroSerieHidrometro} ({selectedImovel.bairro})
-              </p>
+            <div className="p-4 rounded-xl bg-slate-800/80 border border-slate-700">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-base font-bold text-white">{dashImovel.apelidoLocal}</h2>
+                  <p className="text-xs text-slate-400">
+                    Hidrômetro: {dashImovel.numeroSerieHidrometro} · {dashImovel.bairro}
+                  </p>
+                </div>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-700 font-semibold">
+                  {dashImovel.vazaoAtualLpm} L/min
+                </span>
+              </div>
+
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <div className="p-3 rounded-lg bg-slate-900 border border-slate-700">
-                  <span className="text-[11px] text-slate-400">Meta Mensal</span>
-                  <p className="text-base font-bold text-cyan-400">
-                    {selectedImovel.metaConsumoMensalLitros} L
-                  </p>
+                  <span className="text-[11px] text-slate-400">Consumo no Mês</span>
+                  <p className="text-lg font-bold text-white">{dashImovel.consumoMesLitros} L</p>
+                  <span className="text-[10px] text-slate-400">
+                    Meta: {dashImovel.metaConsumoMensalLitros} L ({dashImovel.percentualMetaConsumida}%)
+                  </span>
                 </div>
                 <div className="p-3 rounded-lg bg-slate-900 border border-slate-700">
-                  <span className="text-[11px] text-slate-400">Reservatório</span>
-                  <p className="text-base font-bold text-emerald-400">
-                    {selectedImovel.capacidadeCaixaLitros} L
+                  <span className="text-[11px] text-slate-400">Valor Estimado*</span>
+                  <p className="text-lg font-bold text-emerald-400">
+                    R$ {Number(dashImovel.valorEstimadoReais).toFixed(2)}
                   </p>
+                  <span className="text-[10px] text-slate-400">
+                    Mostrador: {dashImovel.leituraAtualMostradorLitros} L
+                  </span>
                 </div>
               </div>
+              <p className="text-[10px] text-slate-500 mt-2">
+                *Cálculo estimado: litros ÷ 1.000 × tarifa de exemplo (R$ 8,50/m³).
+              </p>
             </div>
 
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Últimas Leituras IoT (Relojoaria + Caixa d&apos;Água)
-            </h3>
-            <div className="space-y-2">
-              {leituras.slice(0, 6).map((l) => (
-                <div
-                  key={l.id}
-                  className="p-3 rounded-lg bg-slate-800/70 border border-slate-700 flex justify-between items-center text-xs"
-                >
-                  <div>
-                    <p className="font-semibold text-white">
-                      Vazão: {l.vazaoInstantaneaLpm} L/min ({l.pulsosRegistrados} pulsos)
-                    </p>
-                    <p className="text-slate-400">
-                      Acumulado: {l.volumeAcumuladoLitros} L · Rua: {l.pressaoRuaBar} bar
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span className="px-2 py-1 rounded bg-cyan-950 text-cyan-300 font-semibold">
-                      Caixa {l.nivelCaixaPercentual}%
+            {/* Alertas Ativos do Imóvel no Painel (Estilo Página 5 do Guia) */}
+            {dashImovel.alertasAtivos && dashImovel.alertasAtivos.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-rose-400">
+                  Alertas Ativos neste Imóvel ({dashImovel.alertasAtivosCount})
+                </h3>
+                {dashImovel.alertasAtivos.map((al: any) => (
+                  <div
+                    key={al.id}
+                    className="p-4 rounded-xl bg-slate-950 border border-rose-700/80 space-y-2"
+                  >
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                      ALERTA NO PAINEL · {al.tipoAlerta} ({al.severidade})
                     </span>
+                    <p className="text-xs text-slate-200">{al.mensagem}</p>
+                    <button
+                      onClick={() => handleConfirmarReparo(al.id)}
+                      className="w-full py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
+                    >
+                      Confirmar reparo
+                    </button>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* TELA 3: CENTRAL DE ALERTAS DE VAZAMENTO E FALTA D'ÁGUA */}
+        {/* TELA 2: HISTÓRICO DIÁRIO DE CONSUMO */}
+        {activeTab === "historico" && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              Histórico Diário ({dashImovel?.apelidoLocal})
+            </h2>
+            {historicoDiario.map((item, idx) => (
+              <div
+                key={idx}
+                className="p-3 rounded-lg bg-slate-800/70 border border-slate-700 flex justify-between items-center text-xs"
+              >
+                <div>
+                  <p className="font-bold text-white">Dia {item.data}</p>
+                  <p className="text-slate-400">Pico de vazão: {item.vazaoMaximaDiaLpm} L/min</p>
+                </div>
+                <div className="text-right">
+                  <span className="px-2.5 py-1 rounded bg-cyan-950 text-cyan-300 font-bold">
+                    {item.consumoDiaLitros} L
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* TELA 3: CENTRAL DE ALERTAS */}
         {activeTab === "alertas" && (
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-              Alertas de Desperdício e Abastecimento
+              Central de Alertas ({alertas.length})
             </h2>
             {alertas.map((a) => (
               <div
                 key={a.id}
                 className={`p-4 rounded-xl border ${
                   a.resolvido
-                    ? "bg-slate-800/40 border-slate-700 opacity-70"
-                    : "bg-rose-950/40 border-rose-700"
+                    ? "bg-slate-800/40 border-slate-700 opacity-60"
+                    : "bg-rose-950/30 border-rose-700"
                 }`}
               >
                 <div className="flex justify-between items-center">
@@ -299,21 +289,16 @@ export default function GotaCertaMobileApp() {
                     {a.tipoAlerta} · {a.severidade}
                   </span>
                   <span className="text-[11px] text-slate-400">
-                    {a.resolvido ? "✅ Resolvido" : "⏳ Pendente"}
+                    {a.resolvido ? "✅ Resolvido" : "⏳ Ativo"}
                   </span>
                 </div>
                 <p className="text-xs text-slate-200 mt-2">{a.mensagem}</p>
-                {a.desperdicioEstimadoLitros > 0 && (
-                  <p className="text-xs text-amber-300 mt-1 font-medium">
-                    Desperdício estimado: {a.desperdicioEstimadoLitros} Litros
-                  </p>
-                )}
                 {!a.resolvido && (
                   <button
-                    onClick={() => handleResolverAlerta(a.id)}
+                    onClick={() => handleConfirmarReparo(a.id)}
                     className="mt-3 w-full py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-semibold"
                   >
-                    Confirmar Reparo / Resolver Alerta (PUT)
+                    Confirmar reparo (PUT /api/alertas/{a.id})
                   </button>
                 )}
               </div>
@@ -321,7 +306,33 @@ export default function GotaCertaMobileApp() {
           </div>
         )}
 
-        {/* TELA 4: CADASTRO DE NOVO IMÓVEL E HIDRÔMETRO */}
+        {/* TELA 4: VISÃO DO GESTOR DA COMUNIDADE (/api/bairros/alertas) */}
+        {activeTab === "gestor" && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              Painel do Gestor · Consumo e Alertas por Bairro
+            </h2>
+            {bairrosAlertas.map((b, i) => (
+              <div key={i} className="p-4 rounded-xl bg-slate-800 border border-slate-700 space-y-1">
+                <div className="flex justify-between">
+                  <h3 className="font-bold text-white">{b.bairro}</h3>
+                  <span className="text-xs text-rose-400 font-semibold">
+                    {b.alertasAtivos} alertas ativos
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  Imóveis monitorados: {b.totalImoveisMonitorados} · Consumo no mês:{" "}
+                  {b.consumoTotalBairroLitros} L
+                </p>
+                <p className="text-xs text-amber-400">
+                  Desperdício estimado em vazamentos: {b.volumeDesperdicadoLitros} L
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* TELA 5: CADASTRO DE IMÓVEL E HIDRÔMETRO */}
         {activeTab === "cadastro" && (
           <form onSubmit={handleCadastrarImovel} className="space-y-3">
             <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
@@ -329,21 +340,11 @@ export default function GotaCertaMobileApp() {
             </h2>
             <input
               required
-              placeholder="Apelido (ex: Casa do Sr. José)"
+              placeholder="Apelido (ex: Casa da Dona Maria)"
               value={apelidoLocal}
               onChange={(e) => setApelidoLocal(e.target.value)}
               className="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-sm"
             />
-            <select
-              value={tipoImovel}
-              onChange={(e) => setTipoImovel(e.target.value)}
-              className="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-sm"
-            >
-              <option value="RESIDENCIAL">Residencial</option>
-              <option value="ESCOLA_PUBLICA">Escola Pública</option>
-              <option value="COMERCIO">Pequeno Comércio</option>
-              <option value="COMUNITARIO">Espaço Comunitário</option>
-            </select>
             <input
               required
               placeholder="Endereço completo"
@@ -365,24 +366,32 @@ export default function GotaCertaMobileApp() {
               onChange={(e) => setHidrometro(e.target.value)}
               className="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-sm"
             />
+            <input
+              type="number"
+              required
+              placeholder="Meta mensal em litros (ex: 10000)"
+              value={metaMensal}
+              onChange={(e) => setMetaMensal(Number(e.target.value))}
+              className="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-sm"
+            />
             <button
               type="submit"
               className="w-full py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm"
             >
-              Salvar Hidrômetro na API (POST)
+              Salvar Hidrômetro (POST /api/imoveis)
             </button>
           </form>
         )}
 
-        {/* TELA 5: LOGIN SEGURO COM JWT BEARER */}
+        {/* TELA DE LOGIN JWT */}
         {activeTab === "login" && (
           <form onSubmit={handleLogin} className="space-y-3">
             <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-              Autenticação Segura (JWT + Hash PBKDF2)
+              Login Seguro (BCrypt + JWT Bearer)
             </h2>
             <p className="text-xs text-slate-400">
-              Teste com <b>maria.silva@email.com</b> (MORADOR) ou{" "}
-              <b>admin@gotacerta.org.br</b> (ADMIN). Senha padrão: <b>GotaCerta@2026</b>
+              Morador: <b>maria.silva@email.com</b> | Gestor: <b>admin@gotacerta.org.br</b> (Senha:{" "}
+              <b>GotaCerta@2026</b>)
             </p>
             <input
               type="email"
@@ -402,31 +411,22 @@ export default function GotaCertaMobileApp() {
               type="submit"
               className="w-full py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-sm"
             >
-              Autenticar na API
+              Entrar
             </button>
           </form>
         )}
       </main>
 
-      {/* Bottom Navigation Bar (Mobile-First) */}
-      <nav className="bg-slate-950 border-t border-slate-800 grid grid-cols-4 text-xs">
+      {/* Navegação Inferior Mobile-First (5 Abas) */}
+      <nav className="bg-slate-950 border-t border-slate-800 grid grid-cols-5 text-[11px]">
         <button
           onClick={() => setActiveTab("dashboard")}
           className={`py-3 flex flex-col items-center ${
             activeTab === "dashboard" ? "text-cyan-400 font-bold" : "text-slate-400"
           }`}
         >
-          <span>🏠</span>
-          <span>Imóveis</span>
-        </button>
-        <button
-          onClick={() => setActiveTab("detalhe")}
-          className={`py-3 flex flex-col items-center ${
-            activeTab === "detalhe" ? "text-cyan-400 font-bold" : "text-slate-400"
-          }`}
-        >
-          <span>📟</span>
-          <span>Telemetria</span>
+          <span>💧</span>
+          <span>Painel</span>
         </button>
         <button
           onClick={() => setActiveTab("alertas")}
@@ -438,13 +438,31 @@ export default function GotaCertaMobileApp() {
           <span>Alertas</span>
         </button>
         <button
+          onClick={() => setActiveTab("historico")}
+          className={`py-3 flex flex-col items-center ${
+            activeTab === "historico" ? "text-cyan-400 font-bold" : "text-slate-400"
+          }`}
+        >
+          <span>📊</span>
+          <span>Histórico</span>
+        </button>
+        <button
+          onClick={() => setActiveTab("gestor")}
+          className={`py-3 flex flex-col items-center ${
+            activeTab === "gestor" ? "text-cyan-400 font-bold" : "text-slate-400"
+          }`}
+        >
+          <span>🏘️</span>
+          <span>Gestor</span>
+        </button>
+        <button
           onClick={() => setActiveTab("cadastro")}
           className={`py-3 flex flex-col items-center ${
             activeTab === "cadastro" ? "text-cyan-400 font-bold" : "text-slate-400"
           }`}
         >
           <span>➕</span>
-          <span>Cadastrar</span>
+          <span>Imóvel</span>
         </button>
       </nav>
     </div>

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
 FIAP - Global Solution 2026/2 - CitizenTech (3ESOA)
-Projeto GotaCerta - Suíte Automatizada de Testes de API (Parte 3 - João)
-Executa 8+ casos de teste (incluindo casos de erro 400, 401, 403, 404) e gera
-relatório de evidências para o PDF da entrega.
+Projeto Gota Certa - Suíte Automatizada de Testes de API (Parte 3 - João)
+Alinhada às Páginas 14 e 21 do Guia do Grupo (10 casos cobrindo 200, 201, 400, 401, 403, 404).
 """
 
 import datetime
@@ -43,11 +42,11 @@ def run_suite():
         print(msg)
         logs.append(msg)
 
-    log("=" * 76)
-    log(f"RELATÓRIO DE EXECUÇÃO DE TESTES AUTOMATIZADOS - GOTACERTA API")
+    log("=" * 78)
+    log("RELATÓRIO DE EXECUÇÃO DE TESTES AUTOMATIZADOS - GOTA CERTA API")
     log(f"Data/Hora UTC: {datetime.datetime.now(datetime.timezone.utc).isoformat()}")
     log(f"Target URL:    {API_BASE}")
-    log("=" * 76)
+    log("=" * 78)
 
     casos = []
 
@@ -56,67 +55,74 @@ def run_suite():
         "POST", "/api/auth/login", {"email": "maria.silva@email.com", "senha": "GotaCerta@2026"}
     )
     token_morador = body.get("tokenJwt", "")
-    casos.append(("CT-01", "Login seguro com credenciais válidas (MORADOR)", 200, status, status == 200 and bool(token_morador)))
+    casos.append(("CT-01", "Login válido com senha verificada em BCrypt (MORADOR)", 200, status, status == 200 and bool(token_morador)))
 
-    # CT-02: Login inválido (Caso de Erro 401)
+    # CT-02: Login inválido (Erro 401)
     status, _ = request_api(
         "POST", "/api/auth/login", {"email": "maria.silva@email.com", "senha": "SenhaIncorreta999"}
     )
     casos.append(("CT-02", "Bloqueio de login com senha incorreta (Erro 401)", 401, status, status == 401))
 
-    # CT-03: Registro inválido (Caso de Erro 400)
+    # CT-03: Registro inválido (Erro 400)
     status, _ = request_api(
         "POST", "/api/auth/register", {"nome": "A", "email": "invalido", "senha": "123"}
     )
-    casos.append(("CT-03", "Validação de entrada no cadastro (Erro 400)", 400, status, status == 400))
+    casos.append(("CT-03", "Validação de entrada inválida no cadastro (Erro 400)", 400, status, status == 400))
 
-    # CT-04: Listar imóveis (GET 200)
-    status, body = request_api("GET", "/api/imoveis")
-    casos.append(("CT-04", "Listagem de imóveis e hidrômetros (GET)", 200, status, status == 200 and isinstance(body, list)))
+    # CT-04: Dashboard do imóvel (GET /api/imoveis/1/dashboard)
+    status, body = request_api("GET", "/api/imoveis/1/dashboard")
+    casos.append(("CT-04", "Dashboard do imóvel: litros, reais estimados e meta (GET)", 200, status, status == 200 and "valorEstimadoReais" in body))
 
-    # CT-05: Buscar imóvel inexistente (Caso de Erro 404)
+    # CT-05: Imóvel inexistente (Erro 404)
     status, _ = request_api("GET", "/api/imoveis/99999")
     casos.append(("CT-05", "Consulta de imóvel inexistente (Erro 404)", 404, status, status == 404))
 
-    # CT-06: Atualizar imóvel (PUT 200)
+    # CT-06: Atualizar meta mensal (PUT /api/imoveis/1)
     status, _ = request_api(
         "PUT",
         "/api/imoveis/1",
         {
             "apelidoLocal": "Residência Dona Maria",
-            "metaConsumoMensalLitros": 11800,
-            "capacidadeCaixaLitros": 1000,
-            "moradoresAtendidos": 4,
+            "endereco": "Rua das Acácias, 142",
+            "bairro": "Jardim Pantanal",
+            "metaConsumoMensalLitros": 10000,
         },
     )
-    casos.append(("CT-06", "Atualização de meta do imóvel (PUT)", 200, status, status == 200))
+    casos.append(("CT-06", "Atualização de meta mensal do imóvel (PUT)", 200, status, status == 200))
 
-    # CT-07: RBAC - Morador tentando DELETE restrito a ADMIN (Caso de Erro 403)
+    # CT-07: Sem token tentando DELETE restrito (Erro 401)
+    status, _ = request_api("DELETE", "/api/imoveis/1")
+    casos.append(("CT-07", "Rota protegida sem token JWT retorna 401 (Erro 401)", 401, status, status == 401))
+
+    # CT-08: RBAC - Morador tentando DELETE restrito a ADMIN (Erro 403)
     status, _ = request_api("DELETE", "/api/imoveis/1", token=token_morador)
-    casos.append(("CT-07", "Bloqueio RBAC: MORADOR tentando DELETE de ADMIN (Erro 403)", 403, status, status == 403))
+    casos.append(("CT-08", "Bloqueio RBAC: MORADOR tentando DELETE de ADMIN (Erro 403)", 403, status, status == 403))
 
-    # CT-08: Telemetria IoT gerando alerta automático de Cano Rompido (POST 201)
+    # CT-09: Gatilho 1 e 2 - Telemetria de madrugada gerando alerta de Vazamento Oculto (POST 201)
     status, body = request_api(
         "POST",
         "/api/leituras",
         {
-            "codigoDispositivo": "ESP32-UNICAMP-REED-002",
-            "pulsosRegistrados": 3600,
-            "vazaoInstantaneaLpm": 60.0,
-            "volumeAcumuladoLitros": 70000.0,
-            "nivelCaixaPercentual": 40.0,
-            "pressaoRuaBar": 1.8,
+            "codigoDispositivo": "GC-001",
+            "dataHora": "2026-11-15T03:00:00Z",
+            "pulsosUltimoMinuto": 1,
+            "leituraAcumuladaLitros": 1234590,
+            "intensidadeLuz": 0.18,
         },
     )
     casos.append(
         (
-            "CT-08",
-            "Telemetria IoT disparando alerta automático na API (POST)",
+            "CT-09",
+            "Telemetria óptica na madrugada disparando alerta automático (POST)",
             201,
             status,
             status == 201 and body.get("alertaGerado") is True,
         )
     )
+
+    # CT-10: Confirmar reparo de alerta (PUT /api/alertas/1)
+    status, body = request_api("PUT", "/api/alertas/1")
+    casos.append(("CT-10", "Confirmar reparo de vazamento (PUT /api/alertas/1)", 200, status, status == 200 and body.get("resolvido") is True))
 
     aprovados = 0
     for cid, desc, esp, obt, ok in casos:
@@ -125,9 +131,9 @@ def run_suite():
             aprovados += 1
         log(f"[{icone}] {cid} | {desc} | Esperado: {esp} | Obtido: {obt}")
 
-    log("-" * 76)
+    log("-" * 78)
     log(f"TOTAL EXECUTADO: {len(casos)} casos | APROVADOS: {aprovados}/{len(casos)}")
-    log("=" * 76)
+    log("=" * 78)
 
     out_path = os.path.join(os.path.dirname(__file__), "relatorio_execucao_testes.txt")
     with open(out_path, "w", encoding="utf-8") as f:

@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using System.Text;
 using GotaCerta.Api.Data;
 using GotaCerta.Api.DTOs;
@@ -12,45 +11,27 @@ using Microsoft.IdentityModel.Tokens;
 namespace GotaCerta.Api.Services;
 
 /// <summary>
-/// Utilitário criptográfico para armazenamento de senhas em Hash PBKDF2-SHA256 com Salt aleatório
-/// (Parte 5 - Segurança: nunca armazena senhas em texto puro).
+/// Utilitário de Hash de Senha com BCrypt (Página 15 Decisão 6 e Página 19 Cartão da Vitória).
+/// Aplica Salt automático e fator de custo (WorkFactor = 11), nunca salvando senha em texto puro.
 /// </summary>
 public static class PasswordHasher
 {
     public static string HashPassword(string password)
     {
-        byte[] salt = RandomNumberGenerator.GetBytes(16);
-        byte[] hash = Rfc2898DeriveBytes.Pbkdf2(
-            Encoding.UTF8.GetBytes(password),
-            salt,
-            iterations: 100_000,
-            HashAlgorithmName.SHA256,
-            outputLength: 32);
-
-        return $"PBKDF2$100000${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
+        return BCrypt.Net.BCrypt.HashPassword(password, workFactor: 11);
     }
 
     public static bool VerifyPassword(string password, string storedHash)
     {
-        if (storedHash.StartsWith("PBKDF2$"))
+        try
         {
-            var parts = storedHash.Split('$');
-            if (parts.Length != 4) return false;
-            int iterations = int.Parse(parts[1]);
-            byte[] salt = Convert.FromBase64String(parts[2]);
-            byte[] expectedHash = Convert.FromBase64String(parts[3]);
-
-            byte[] actualHash = Rfc2898DeriveBytes.Pbkdf2(
-                Encoding.UTF8.GetBytes(password),
-                salt,
-                iterations,
-                HashAlgorithmName.SHA256,
-                expectedHash.Length);
-
-            return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
+            if (storedHash.StartsWith("$2"))
+                return BCrypt.Net.BCrypt.Verify(password, storedHash);
         }
-
-        // Compatibilidade com a senha padrão dos scripts SQL de seed ("GotaCerta@2026")
+        catch
+        {
+            // Fallback para hashes legados do script SQL de seed
+        }
         return password == "GotaCerta@2026";
     }
 }
@@ -94,8 +75,7 @@ public class AuthService : IAuthService
             Nome = dto.Nome.Trim(),
             Email = emailNormalizado,
             SenhaHash = PasswordHasher.HashPassword(dto.Senha),
-            Perfil = dto.Perfil.ToUpperInvariant(),
-            Telefone = dto.Telefone
+            Perfil = dto.Perfil.ToUpperInvariant()
         };
 
         _context.Usuarios.Add(novoUsuario);
@@ -106,7 +86,9 @@ public class AuthService : IAuthService
 
     private AuthResponseDto GenerateTokenResponse(Usuario usuario)
     {
-        var secret = _config["JwtSettings:SecretKey"] ?? "GotaCerta_FIAP_GlobalSolution_2026_ChaveSecretaSuperSegura_3ESOA!";
+        var secret = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
+            ?? _config["JwtSettings:SecretKey"]
+            ?? "GotaCerta_FIAP_GlobalSolution_2026_ChaveSecretaSuperSegura_3ESOA!";
         var issuer = _config["JwtSettings:Issuer"] ?? "GotaCerta.Api";
         var audience = _config["JwtSettings:Audience"] ?? "GotaCerta.Client";
         var expiraEm = DateTime.UtcNow.AddHours(8);
@@ -138,16 +120,22 @@ public class AuthService : IAuthService
 public interface ITelemetriaService
 {
     Task<LeituraProcessedResponseDto> ProcessarLeituraIoTAsync(CreateLeituraIoTDto dto);
-    Task<DashboardResumoDto> ObterResumoDashboardAsync();
+    Task<ImovelDashboardDto?> ObterDashboardImovelAsync(int imovelId);
+    Task<List<ConsumoDiarioItemDto>> ObterHistoricoDiarioImovelAsync(int imovelId);
+    Task<List<BairroAlertaResumoDto>> ObterAlertasPorBairroAsync();
 }
 
 /// <summary>
-/// Motor de regras de telemetria hídrica (Parte 2 + Parte 6 IoT).
-/// Avalia os pulsos da relojoaria do hidrômetro (Ref. PIBIC/UNICAMP) e o nível
-/// do reservatório para disparar alertas automáticos na aplicação.
+/// Motor de Regras da Gota Certa (Páginas 5, 6, 8, 9 e 14 do Guia do Grupo).
+/// Converte pulsos em vazão (L/min) e avalia os 3 gatilhos de alerta:
+/// 1) VAZAMENTO_OCULTO_MADRUGADA (MEDIA)
+/// 2) CANO_ROMPIDO_PICO (CRITICA)
+/// 3) META_MENSAL_ULTRAPASSADA (BAIXA)
 /// </summary>
 public class TelemetriaService : ITelemetriaService
 {
+    private const decimal TarifaPadraoPorM3 = 8.50m; // Página 5: valor = litros / 1000 * tarifa por m³
+
     private readonly ISensorRepository _sensorRepo;
     private readonly ILeituraAlertaRepository _leituraAlertaRepo;
     private readonly AppDbContext _context;
@@ -167,106 +155,214 @@ public class TelemetriaService : ITelemetriaService
         var sensor = await _sensorRepo.GetByCodigoAsync(dto.CodigoDispositivo)
             ?? throw new KeyNotFoundException($"Sensor IoT '{dto.CodigoDispositivo}' não encontrado.");
 
-        var horarioLeitura = dto.DataHoraLeitura ?? DateTime.UtcNow;
+        int pulsos = dto.PulsosUltimoMinuto ?? dto.PulsosRegistrados ?? 0;
+        decimal vazaoLpm = dto.VazaoInstantaneaLpm ?? Math.Round(pulsos * sensor.FatorCalibracaoPulsosLitro, 2);
+        decimal volumeAcumulado = dto.LeituraAcumuladaLitros ?? dto.VolumeAcumuladoLitros ?? 0m;
+        var horarioLeitura = dto.DataHora ?? dto.DataHoraLeitura ?? DateTime.UtcNow;
+
+        // Se o simulador não informar o acumulado explícito, soma ao último acumulado salvo
+        if (volumeAcumulado <= 0m)
+        {
+            var ultimaLeitura = await _context.LeiturasHidrometro
+                .Where(l => l.SensorId == sensor.Id)
+                .OrderByDescending(l => l.DataHoraLeitura)
+                .FirstOrDefaultAsync();
+            decimal baseAnterior = ultimaLeitura?.VolumeAcumuladoLitros ?? 100000m;
+            volumeAcumulado = baseAnterior + (pulsos * sensor.FatorCalibracaoPulsosLitro);
+        }
 
         var leitura = new LeituraHidrometro
         {
             SensorId = sensor.Id,
-            PulsosRegistrados = dto.PulsosRegistrados,
-            VazaoInstantaneaLpm = dto.VazaoInstantaneaLpm,
-            VolumeAcumuladoLitros = dto.VolumeAcumuladoLitros,
-            NivelCaixaPercentual = dto.NivelCaixaPercentual,
-            PressaoRuaBar = dto.PressaoRuaBar,
+            PulsosRegistrados = pulsos,
+            VazaoInstantaneaLpm = vazaoLpm,
+            VolumeAcumuladoLitros = volumeAcumulado,
+            IntensidadeLuz = dto.IntensidadeLuz,
             DataHoraLeitura = horarioLeitura
         };
 
         await _leituraAlertaRepo.AddLeituraAsync(leitura);
 
-        // Regra 1: Surto de Vazão / Cano Rompido (Vazão ultrapassa o limite do sensor)
-        if (dto.VazaoInstantaneaLpm > sensor.LimiteVazaoAlertaLpm)
+        var tiposDisparados = new List<string>();
+        var mensagens = new List<string>();
+
+        // GATILHO 1 (Página 9): Surto de vazão / Cano rompido (vazão > limite_vazao_alerta_lpm)
+        if (vazaoLpm > sensor.LimiteVazaoAlertaLpm)
         {
-            var desperdicioHora = Math.Round(dto.VazaoInstantaneaLpm * 60m, 2);
+            var desperdicioHora = Math.Round(vazaoLpm * 60m, 2);
             var alerta = await _leituraAlertaRepo.AddAlertaAsync(new AlertaConsumo
             {
                 ImovelId = sensor.ImovelId,
                 LeituraId = leitura.Id,
                 TipoAlerta = "CANO_ROMPIDO_PICO",
                 Severidade = "CRITICA",
-                Mensagem = $"Vazão crítica de {dto.VazaoInstantaneaLpm:F1} L/min detectada na relojoaria do hidrômetro (limite: {sensor.LimiteVazaoAlertaLpm:F1} L/min). Feche o registro geral!",
+                Mensagem = $"Surto de vazão de {vazaoLpm:F1} L/min ultrapassou o limite do imóvel ({sensor.LimiteVazaoAlertaLpm:F1} L/min). Possível cano rompido ou torneira esquecida aberta!",
                 DesperdicioEstimadoLitros = desperdicioHora,
                 Resolvido = false
             });
-
-            return new LeituraProcessedResponseDto(
-                leitura.Id, sensor.CodigoDispositivo, leitura.VazaoInstantaneaLpm,
-                leitura.VolumeAcumuladoLitros, leitura.NivelCaixaPercentual, leitura.PressaoRuaBar,
-                true, alerta.TipoAlerta, alerta.Mensagem);
+            tiposDisparados.Add(alerta.TipoAlerta);
+            mensagens.Add(alerta.Mensagem);
         }
 
-        // Regra 2: Vazamento Oculto Contínuo na Madrugada (01h às 05h com fluxo entre 0.4 eLimite)
-        if (horarioLeitura.Hour >= 1 && horarioLeitura.Hour <= 5 && dto.VazaoInstantaneaLpm >= 0.4m)
+        // GATILHO 2 (Página 9): Vazamento oculto de madrugada (00h às 05h, fluxo >= 0,1 L/min para pegar descarga pingando de 0,33 L/min)
+        if (horarioLeitura.Hour >= 0 && horarioLeitura.Hour <= 5 && vazaoLpm >= 0.1m && vazaoLpm <= sensor.LimiteVazaoAlertaLpm)
         {
-            var desperdicioDia = Math.Round(dto.VazaoInstantaneaLpm * 60m * 6m, 2);
+            var desperdicioNoite = Math.Round(vazaoLpm * 60m * 3m, 2);
             var alerta = await _leituraAlertaRepo.AddAlertaAsync(new AlertaConsumo
             {
                 ImovelId = sensor.ImovelId,
                 LeituraId = leitura.Id,
                 TipoAlerta = "VAZAMENTO_OCULTO_MADRUGADA",
                 Severidade = "MEDIA",
-                Mensagem = $"Giro contínuo na relojoaria ({dto.VazaoInstantaneaLpm:F2} L/min) às {horarioLeitura:HH:mm}. Indício de vazamento oculto em descarga ou boia!",
-                DesperdicioEstimadoLitros = desperdicioDia,
+                Mensagem = $"Água passando sem parar de madrugada ({vazaoLpm:F2} L/min às {horarioLeitura:HH:mm}). Confira a válvula de descarga e a boia da caixa.",
+                DesperdicioEstimadoLitros = desperdicioNoite,
                 Resolvido = false
             });
-
-            return new LeituraProcessedResponseDto(
-                leitura.Id, sensor.CodigoDispositivo, leitura.VazaoInstantaneaLpm,
-                leitura.VolumeAcumuladoLitros, leitura.NivelCaixaPercentual, leitura.PressaoRuaBar,
-                true, alerta.TipoAlerta, alerta.Mensagem);
+            tiposDisparados.Add(alerta.TipoAlerta);
+            mensagens.Add(alerta.Mensagem);
         }
 
-        // Regra 3: Caixa d'Água Crítica + Queda de Pressão na Rede Pública
-        if (dto.NivelCaixaPercentual <= 20.0m || dto.PressaoRuaBar <= 0.1m)
+        // GATILHO 3 (Página 9): Meta do mês estourada (consumo no mês > meta_consumo_mensal_litros)
+        if (sensor.Imovel is not null)
         {
-            var tipo = dto.NivelCaixaPercentual <= 20.0m ? "CAIXA_DAGUA_CRITICA" : "FALTA_DAGUA_BAIRRO";
-            var severidade = dto.NivelCaixaPercentual <= 20.0m ? "CRITICA" : "MEDIA";
-            var msg = $"Pressão da rua em {dto.PressaoRuaBar:F1} bar e reservatório em {dto.NivelCaixaPercentual:F1}%. Economia preventiva recomendada!";
-
-            var alerta = await _leituraAlertaRepo.AddAlertaAsync(new AlertaConsumo
+            var leiturasImovel = await _leituraAlertaRepo.GetLeiturasByImovelAsync(sensor.ImovelId);
+            if (leiturasImovel.Count > 0)
             {
-                ImovelId = sensor.ImovelId,
-                LeituraId = leitura.Id,
-                TipoAlerta = tipo,
-                Severidade = severidade,
-                Mensagem = msg,
-                DesperdicioEstimadoLitros = 0m,
-                Resolvido = false
-            });
+                decimal menorAcumulado = leiturasImovel.Min(l => l.VolumeAcumuladoLitros);
+                decimal consumoNoMes = Math.Max(0m, volumeAcumulado - menorAcumulado);
 
-            return new LeituraProcessedResponseDto(
-                leitura.Id, sensor.CodigoDispositivo, leitura.VazaoInstantaneaLpm,
-                leitura.VolumeAcumuladoLitros, leitura.NivelCaixaPercentual, leitura.PressaoRuaBar,
-                true, alerta.TipoAlerta, alerta.Mensagem);
+                if (consumoNoMes > sensor.Imovel.MetaConsumoMensalLitros)
+                {
+                    bool jaTemAlertaMetaAtivo = await _context.AlertasConsumo.AnyAsync(a =>
+                        a.ImovelId == sensor.ImovelId &&
+                        a.TipoAlerta == "META_MENSAL_ULTRAPASSADA" &&
+                        !a.Resolvido);
+
+                    if (!jaTemAlertaMetaAtivo)
+                    {
+                        var alertaMeta = await _leituraAlertaRepo.AddAlertaAsync(new AlertaConsumo
+                        {
+                            ImovelId = sensor.ImovelId,
+                            LeituraId = leitura.Id,
+                            TipoAlerta = "META_MENSAL_ULTRAPASSADA",
+                            Severidade = "BAIXA",
+                            Mensagem = $"Você passou da meta do mês: já foram {consumoNoMes:F0} litros, acima da meta de {sensor.Imovel.MetaConsumoMensalLitros:F0} litros.",
+                            DesperdicioEstimadoLitros = 0m,
+                            Resolvido = false
+                        });
+                        tiposDisparados.Add(alertaMeta.TipoAlerta);
+                        mensagens.Add(alertaMeta.Mensagem);
+                    }
+                }
+            }
         }
 
         return new LeituraProcessedResponseDto(
-            leitura.Id, sensor.CodigoDispositivo, leitura.VazaoInstantaneaLpm,
-            leitura.VolumeAcumuladoLitros, leitura.NivelCaixaPercentual, leitura.PressaoRuaBar,
-            false, null, "Leitura dentro dos parâmetros normais.");
+            leitura.Id,
+            sensor.CodigoDispositivo,
+            leitura.PulsosRegistrados,
+            leitura.VazaoInstantaneaLpm,
+            leitura.VolumeAcumuladoLitros,
+            leitura.IntensidadeLuz,
+            tiposDisparados.Count > 0,
+            tiposDisparados,
+            tiposDisparados.Count > 0 ? string.Join(" | ", mensagens) : "Leitura dentro dos parâmetros normais."
+        );
     }
 
-    public async Task<DashboardResumoDto> ObterResumoDashboardAsync()
+    public async Task<ImovelDashboardDto?> ObterDashboardImovelAsync(int imovelId)
     {
-        var totalImoveis = await _context.Imoveis.CountAsync();
-        var totalSensores = await _context.SensoresIoT.CountAsync(s => s.Ativo);
-        var alertasAtivos = await _context.AlertasConsumo.Where(a => !a.Resolvido).ToListAsync();
-        var desperdicio = alertasAtivos.Sum(a => a.DesperdicioEstimadoLitros);
-        var cidadaos = await _context.Imoveis.SumAsync(i => i.MoradoresAtendidos);
+        var imovel = await _context.Imoveis
+            .Include(i => i.Alertas.Where(a => !a.Resolvido))
+            .FirstOrDefaultAsync(i => i.Id == imovelId);
 
-        return new DashboardResumoDto(
-            totalImoveis,
-            totalSensores,
-            alertasAtivos.Count,
-            desperdicio,
-            cidadaos);
+        if (imovel is null) return null;
+
+        var leituras = await _leituraAlertaRepo.GetLeiturasByImovelAsync(imovelId);
+        decimal vazaoAtual = leituras.LastOrDefault()?.VazaoInstantaneaLpm ?? 0m;
+        decimal leituraMostrador = leituras.LastOrDefault()?.VolumeAcumuladoLitros ?? 0m;
+        decimal consumoMes = leituras.Count > 1
+            ? Math.Max(0m, leituras.Max(l => l.VolumeAcumuladoLitros) - leituras.Min(l => l.VolumeAcumuladoLitros))
+            : 0m;
+
+        decimal pctMeta = imovel.MetaConsumoMensalLitros > 0
+            ? Math.Round((consumoMes / imovel.MetaConsumoMensalLitros) * 100m, 1)
+            : 0m;
+
+        // Fórmula da Página 5: valor = litros / 1000 * tarifa por m³
+        decimal valorReais = Math.Round((consumoMes / 1000m) * TarifaPadraoPorM3, 2);
+
+        var alertasResumo = imovel.Alertas
+            .Select(a => (object)new
+            {
+                a.Id,
+                a.TipoAlerta,
+                a.Severidade,
+                a.Mensagem,
+                a.DesperdicioEstimadoLitros,
+                a.DataGeracao
+            })
+            .ToList();
+
+        return new ImovelDashboardDto(
+            imovel.Id,
+            imovel.ApelidoLocal,
+            imovel.Bairro,
+            imovel.NumeroSerieHidrometro,
+            vazaoAtual,
+            leituraMostrador,
+            consumoMes,
+            imovel.MetaConsumoMensalLitros,
+            pctMeta,
+            valorReais,
+            alertasResumo.Count,
+            alertasResumo
+        );
+    }
+
+    public async Task<List<ConsumoDiarioItemDto>> ObterHistoricoDiarioImovelAsync(int imovelId)
+    {
+        var leituras = await _leituraAlertaRepo.GetLeiturasByImovelAsync(imovelId);
+        return leituras
+            .GroupBy(l => l.DataHoraLeitura.ToString("yyyy-MM-dd"))
+            .Select(g => new ConsumoDiarioItemDto(
+                g.Key,
+                g.Count() > 1 ? Math.Max(0m, g.Max(x => x.VolumeAcumuladoLitros) - g.Min(x => x.VolumeAcumuladoLitros)) : g.Sum(x => x.PulsosRegistrados),
+                g.Max(x => x.VazaoInstantaneaLpm),
+                g.Sum(x => x.PulsosRegistrados)
+            ))
+            .OrderBy(x => x.Data)
+            .ToList();
+    }
+
+    public async Task<List<BairroAlertaResumoDto>> ObterAlertasPorBairroAsync()
+    {
+        var imoveis = await _context.Imoveis
+            .Include(i => i.Alertas)
+            .Include(i => i.Sensores)
+            .ThenInclude(s => s.Leituras)
+            .ToListAsync();
+
+        return imoveis
+            .GroupBy(i => i.Bairro)
+            .Select(g =>
+            {
+                var alertasAtivos = g.SelectMany(i => i.Alertas).Where(a => !a.Resolvido).ToList();
+                decimal consumoBairro = g.Sum(i =>
+                {
+                    var ls = i.Sensores.SelectMany(s => s.Leituras).ToList();
+                    return ls.Count > 1 ? ls.Max(l => l.VolumeAcumuladoLitros) - ls.Min(l => l.VolumeAcumuladoLitros) : 0m;
+                });
+
+                return new BairroAlertaResumoDto(
+                    g.Key,
+                    g.Count(),
+                    alertasAtivos.Count,
+                    Math.Round(alertasAtivos.Sum(a => a.DesperdicioEstimadoLitros), 2),
+                    Math.Round(consumoBairro, 2)
+                );
+            })
+            .OrderByDescending(b => b.VolumeDesperdicadoLitros)
+            .ToList();
     }
 }

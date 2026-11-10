@@ -26,9 +26,7 @@ public record RegisterUsuarioDto(
     string Senha,
 
     [RegularExpression("^(MORADOR|ADMIN)$", ErrorMessage = "O perfil deve ser MORADOR ou ADMIN.")]
-    string Perfil = "MORADOR",
-
-    string? Telefone = null
+    string Perfil = "MORADOR"
 );
 
 public record AuthResponseDto(
@@ -43,58 +41,98 @@ public record AuthResponseDto(
 public record CreateImovelDto(
     [Required] int UsuarioId,
     [Required, StringLength(100, MinimumLength = 3)] string ApelidoLocal,
-    [Required, RegularExpression("^(RESIDENCIAL|ESCOLA_PUBLICA|COMERCIO|COMUNITARIO)$")] string TipoImovel,
     [Required, StringLength(200, MinimumLength = 5)] string Endereco,
     [Required, StringLength(80, MinimumLength = 2)] string Bairro,
     [Required, StringLength(15, MinimumLength = 8)] string Cep,
     [Required, StringLength(50, MinimumLength = 4)] string NumeroSerieHidrometro,
-    [Range(100, 10000000)] decimal MetaConsumoMensalLitros,
-    [Range(100, 5000000)] decimal CapacidadeCaixaLitros,
-    [Range(1, 10000)] int MoradoresAtendidos = 1
+    [Range(100, 10000000)] decimal MetaConsumoMensalLitros = 10000m
 );
 
 public record UpdateImovelDto(
     [Required, StringLength(100, MinimumLength = 3)] string ApelidoLocal,
-    [Range(100, 10000000)] decimal MetaConsumoMensalLitros,
-    [Range(100, 5000000)] decimal CapacidadeCaixaLitros,
-    [Range(1, 10000)] int MoradoresAtendidos
+    [Required, StringLength(200, MinimumLength = 5)] string Endereco,
+    [Required, StringLength(80, MinimumLength = 2)] string Bairro,
+    [Range(100, 10000000)] decimal MetaConsumoMensalLitros
 );
 
 public record CreateSensorDto(
     [Required] int ImovelId,
-    [Required, StringLength(60, MinimumLength = 4)] string CodigoDispositivo,
-    [Required, RegularExpression("^(PULSO_RELOJOARIA_HIDROMETRO|ULTRASSONICO_CAIXA_DAGUA)$")] string TipoSensor,
-    [Required, StringLength(120)] string ModeloHardware,
-    [Range(0.1, 1000)] decimal FatorPulsosPorLitro = 1.0m,
-    [Range(1.0, 500.0)] decimal LimiteVazaoAlertaLpm = 20.0m
+    [Required, StringLength(60, MinimumLength = 3)] string CodigoDispositivo,
+    [Required, RegularExpression("^(LED_IR|FOTOTRANSISTOR)$", ErrorMessage = "O tipoSensor deve ser LED_IR ou FOTOTRANSISTOR.")] string TipoSensor = "FOTOTRANSISTOR",
+    [Range(0.1, 1000)] decimal FatorCalibracaoPulsosLitro = 1.0m,
+    [Range(1.0, 500.0)] decimal LimiteVazaoAlertaLpm = 25.0m
 );
 
-public record CreateLeituraIoTDto(
-    [Required] string CodigoDispositivo,
-    [Range(0, 1000000)] int PulsosRegistrados,
-    [Range(0, 5000)] decimal VazaoInstantaneaLpm,
-    [Range(0, 999999999)] decimal VolumeAcumuladoLitros,
-    [Range(0, 100)] decimal NivelCaixaPercentual,
-    [Range(0, 20)] decimal PressaoRuaBar,
-    DateTime? DataHoraLeitura = null
-);
+/// <summary>
+/// Aceita tanto a nomenclatura sugerida na Página 14 do Guia do Grupo
+/// ("pulsosUltimoMinuto", "leituraAcumuladaLitros", "dataHora", "intensidadeLuz")
+/// quanto os nomes das colunas do banco ("pulsosRegistrados", "vazaoInstantaneaLpm", "volumeAcumuladoLitros").
+/// </summary>
+public class CreateLeituraIoTDto
+{
+    [Required]
+    public string CodigoDispositivo { get; set; } = string.Empty;
+
+    [Range(0, 1000000)]
+    public int? PulsosUltimoMinuto { get; set; }
+
+    [Range(0, 1000000)]
+    public int? PulsosRegistrados { get; set; }
+
+    [Range(0, 5000)]
+    public decimal? VazaoInstantaneaLpm { get; set; }
+
+    [Range(0, 999999999)]
+    public decimal? LeituraAcumuladaLitros { get; set; }
+
+    [Range(0, 999999999)]
+    public decimal? VolumeAcumuladoLitros { get; set; }
+
+    [Range(0, 1.0)]
+    public decimal? IntensidadeLuz { get; set; }
+
+    public DateTime? DataHora { get; set; }
+    public DateTime? DataHoraLeitura { get; set; }
+}
 
 public record LeituraProcessedResponseDto(
     int LeituraId,
     string CodigoDispositivo,
+    int PulsosRegistrados,
     decimal VazaoInstantaneaLpm,
     decimal VolumeAcumuladoLitros,
-    decimal NivelCaixaPercentual,
-    decimal PressaoRuaBar,
+    decimal? IntensidadeLuz,
     bool AlertaGerado,
-    string? TipoAlertaGerado,
-    string? MensagemAlerta
+    List<string> TiposAlertasGerados,
+    string MensagemResumo
 );
 
-public record DashboardResumoDto(
+public record ImovelDashboardDto(
+    int ImovelId,
+    string ApelidoLocal,
+    string Bairro,
+    string NumeroSerieHidrometro,
+    decimal VazaoAtualLpm,
+    decimal LeituraAtualMostradorLitros,
+    decimal ConsumoMesLitros,
+    decimal MetaConsumoMensalLitros,
+    decimal PercentualMetaConsumida,
+    decimal ValorEstimadoReais,
+    int AlertasAtivosCount,
+    List<object> AlertasAtivos
+);
+
+public record ConsumoDiarioItemDto(
+    string Data,
+    decimal ConsumoDiaLitros,
+    decimal VazaoMaximaDiaLpm,
+    int TotalPulsosDia
+);
+
+public record BairroAlertaResumoDto(
+    string Bairro,
     int TotalImoveisMonitorados,
-    int TotalSensoresAtivos,
-    int TotalAlertasAtivos,
-    decimal TotalDesperdicioEstimadoLitros,
-    int CidadaosProtegidos
+    int AlertasAtivos,
+    decimal VolumeDesperdicadoLitros,
+    decimal ConsumoTotalBairroLitros
 );

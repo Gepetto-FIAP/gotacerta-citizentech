@@ -1,7 +1,8 @@
 -- ============================================================================
 -- FIAP - GLOBAL SOLUTION 2026/2 - CITIZENTECH (3ESOA)
--- PROJETO: GOTACERTA - TELEMETRIA DE HIDRÔMETROS E COMBATE AO DESPERDÍCIO
--- ARQUIVO: 01_schema_seed_mysql.sql (MySQL 8.0 / Docker Init Script)
+-- PROJETO: GOTA CERTA - TELEMETRIA ACESSÍVEL PARA HIDRÔMETROS CONVENCIONAIS
+-- ARQUIVO: 01_schema_seed_mysql.sql (MySQL 8.0 - Modelo Oficial da Página 13)
+-- RESPONSÁVEL: Antônio Aloísio Schappo Neto (RM556429)
 -- ============================================================================
 
 SET NAMES utf8mb4;
@@ -21,7 +22,6 @@ CREATE TABLE usuarios (
     email VARCHAR(150) NOT NULL UNIQUE,
     senha_hash VARCHAR(255) NOT NULL,
     perfil VARCHAR(30) NOT NULL,
-    telefone VARCHAR(20),
     criado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_usuarios_perfil CHECK (perfil IN ('MORADOR', 'ADMIN'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -30,29 +30,25 @@ CREATE TABLE imoveis (
     id INT AUTO_INCREMENT PRIMARY KEY,
     usuario_id INT NOT NULL,
     apelido_local VARCHAR(100) NOT NULL,
-    tipo_imovel VARCHAR(40) NOT NULL,
     endereco VARCHAR(200) NOT NULL,
     bairro VARCHAR(80) NOT NULL,
     cep VARCHAR(15) NOT NULL,
     numero_serie_hidrometro VARCHAR(50) NOT NULL UNIQUE,
     meta_consumo_mensal_litros DECIMAL(10,2) NOT NULL,
-    capacidade_caixa_litros DECIMAL(10,2) NOT NULL,
-    moradores_atendidos INT NOT NULL DEFAULT 1,
     CONSTRAINT fk_imoveis_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
-    CONSTRAINT chk_imoveis_tipo CHECK (tipo_imovel IN ('RESIDENCIAL', 'ESCOLA_PUBLICA', 'COMERCIO', 'COMUNITARIO'))
+    CONSTRAINT chk_imoveis_meta CHECK (meta_consumo_mensal_litros > 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE sensores_iot (
     id INT AUTO_INCREMENT PRIMARY KEY,
     imovel_id INT NOT NULL,
     codigo_dispositivo VARCHAR(60) NOT NULL UNIQUE,
-    tipo_sensor VARCHAR(50) NOT NULL,
-    modelo_hardware VARCHAR(120) NOT NULL,
-    fator_pulsos_por_litro DECIMAL(8,2) NOT NULL DEFAULT 1.00,
-    limite_vazao_alerta_lpm DECIMAL(8,2) NOT NULL DEFAULT 20.00,
-    ativo TINYINT(1) NOT NULL DEFAULT 1,
-    instalado_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_sensores_imovel FOREIGN KEY (imovel_id) REFERENCES imoveis(id) ON DELETE CASCADE
+    tipo_sensor VARCHAR(40) NOT NULL,
+    fator_calibracao_pulsos_litro DECIMAL(8,2) NOT NULL DEFAULT 1.00,
+    limite_vazao_alerta_lpm DECIMAL(8,2) NOT NULL DEFAULT 25.00,
+    status_ativo TINYINT(1) NOT NULL DEFAULT 1,
+    CONSTRAINT fk_sensores_imovel FOREIGN KEY (imovel_id) REFERENCES imoveis(id) ON DELETE CASCADE,
+    CONSTRAINT chk_sensores_tipo CHECK (tipo_sensor IN ('LED_IR', 'FOTOTRANSISTOR'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE leituras_hidrometro (
@@ -61,8 +57,7 @@ CREATE TABLE leituras_hidrometro (
     pulsos_registrados INT NOT NULL,
     vazao_instantanea_lpm DECIMAL(10,2) NOT NULL,
     volume_acumulado_litros DECIMAL(12,2) NOT NULL,
-    nivel_caixa_percentual DECIMAL(5,2) NOT NULL,
-    pressao_rua_bar DECIMAL(5,2) NOT NULL,
+    intensidade_luz DECIMAL(5,2) NULL,
     data_hora_leitura DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_leituras_sensor FOREIGN KEY (sensor_id) REFERENCES sensores_iot(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -78,42 +73,48 @@ CREATE TABLE alertas_consumo (
     resolvido TINYINT(1) NOT NULL DEFAULT 0,
     data_geracao DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_alertas_imovel FOREIGN KEY (imovel_id) REFERENCES imoveis(id) ON DELETE CASCADE,
-    CONSTRAINT fk_alertas_leitura FOREIGN KEY (leitura_id) REFERENCES leituras_hidrometro(id) ON DELETE SET NULL
+    CONSTRAINT fk_alertas_leitura FOREIGN KEY (leitura_id) REFERENCES leituras_hidrometro(id) ON DELETE SET NULL,
+    CONSTRAINT chk_alertas_tipo CHECK (tipo_alerta IN ('VAZAMENTO_OCULTO_MADRUGADA', 'CANO_ROMPIDO_PICO', 'META_MENSAL_ULTRAPASSADA')),
+    CONSTRAINT chk_alertas_sev CHECK (severidade IN ('BAIXA', 'MEDIA', 'CRITICA'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO usuarios (id, nome, email, senha_hash, perfil, telefone, criado_em) VALUES
-(1, 'Antônio Schappo (Admin Defesa Hídrica)', 'admin@gotacerta.org.br', '$2a$11$K8Zp9W3qR7xL2mN5vB8cOe1yT4uI6oP9aS2dF5gH8jK1lZ4xC7vB.', 'ADMIN', '11999990001', '2026-11-01 08:00:00'),
-(2, 'Dona Maria Aparecida Silva', 'maria.silva@email.com', '$2a$11$K8Zp9W3qR7xL2mN5vB8cOe1yT4uI6oP9aS2dF5gH8jK1lZ4xC7vB.', 'MORADOR', '11988881122', '2026-11-01 09:15:00'),
-(3, 'Carlos Eduardo Santos (Diretor Escolar)', 'diretoria@emeluzdosaber.edu.br', '$2a$11$K8Zp9W3qR7xL2mN5vB8cOe1yT4uI6oP9aS2dF5gH8jK1lZ4xC7vB.', 'MORADOR', '11977773344', '2026-11-02 10:30:00'),
-(4, 'Padaria Comunitária Pão da Vila', 'contato@paodavila.com.br', '$2a$11$K8Zp9W3qR7xL2mN5vB8cOe1yT4uI6oP9aS2dF5gH8jK1lZ4xC7vB.', 'MORADOR', '11966665566', '2026-11-02 14:00:00'),
-(5, 'João Pereira (Líder Comunitário)', 'joao.pereira@comunidade.org', '$2a$11$K8Zp9W3qR7xL2mN5vB8cOe1yT4uI6oP9aS2dF5gH8jK1lZ4xC7vB.', 'MORADOR', '11955557788', '2026-11-03 11:20:00');
+INSERT INTO usuarios (id, nome, email, senha_hash, perfil, criado_em) VALUES
+(1, 'Antônio Schappo (Gestor da Comunidade)', 'admin@gotacerta.org.br', '$2a$11$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW', 'ADMIN', '2026-11-01 08:00:00'),
+(2, 'Dona Maria Aparecida Silva', 'maria.silva@email.com', '$2a$11$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW', 'MORADOR', '2026-11-01 09:15:00'),
+(3, 'Carlos Eduardo Santos (EMEI Luz do Saber)', 'diretoria@emeiluzdosaber.edu.br', '$2a$11$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW', 'MORADOR', '2026-11-02 10:30:00'),
+(4, 'Padaria Comunitária Pão da Vila', 'contato@paodavila.com.br', '$2a$11$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW', 'MORADOR', '2026-11-02 14:00:00'),
+(5, 'João Pereira (Morador Vila Itaim)', 'joao.pereira@email.com', '$2a$11$R9h/cIPz0gi.URNNX3kh2OPST9/PgBkqquzi.Ss7KIUgO2t0jWMUW', 'MORADOR', '2026-11-03 11:20:00');
 
-INSERT INTO imoveis (id, usuario_id, apelido_local, tipo_imovel, endereco, bairro, cep, numero_serie_hidrometro, meta_consumo_mensal_litros, capacidade_caixa_litros, moradores_atendidos) VALUES
-(1, 2, 'Residência Dona Maria', 'RESIDENCIAL', 'Rua das Acácias, 142', 'Jardim Pantanal', '08090-100', 'HIDRO-LAO-2024-8891', 12000.00, 1000.00, 4),
-(2, 3, 'EMEI Luz do Saber', 'ESCOLA_PUBLICA', 'Av. Esperança, 850', 'Jardim Pantanal', '08090-210', 'HIDRO-SABESP-2023-4410', 85000.00, 10000.00, 320),
-(3, 4, 'Padaria Pão da Vila', 'COMERCIO', 'Rua Central, 55', 'Vila Itaim', '08110-030', 'HIDRO-ELSTER-2024-1102', 25000.00, 2000.00, 12),
-(4, 5, 'Horta & Cozinha Comunitária', 'COMUNITARIO', 'Travessa União, 19', 'Vila Itaim', '08110-080', 'HIDRO-ITRON-2022-9920', 30000.00, 5000.00, 85);
+INSERT INTO imoveis (id, usuario_id, apelido_local, endereco, bairro, cep, numero_serie_hidrometro, meta_consumo_mensal_litros) VALUES
+(1, 2, 'Residência Dona Maria', 'Rua das Acácias, 142', 'Jardim Pantanal', '08090-100', 'HIDRO-LAO-2024-8891', 10000.00),
+(2, 3, 'EMEI Luz do Saber', 'Av. Esperança, 850', 'Jardim Pantanal', '08090-210', 'HIDRO-SABESP-2023-4410', 80000.00),
+(3, 4, 'Padaria Pão da Vila', 'Rua Central, 55', 'Vila Itaim', '08110-030', 'HIDRO-ELSTER-2024-1102', 20000.00),
+(4, 5, 'Casa do Sr. João Pereira', 'Travessa União, 19', 'Vila Itaim', '08110-080', 'HIDRO-ITRON-2022-9920', 9000.00);
 
-INSERT INTO sensores_iot (id, imovel_id, codigo_dispositivo, tipo_sensor, modelo_hardware, fator_pulsos_por_litro, limite_vazao_alerta_lpm, ativo, instalado_em) VALUES
-(1, 1, 'ESP32-UNICAMP-REED-001', 'PULSO_RELOJOARIA_HIDROMETRO', 'Reed Switch + Hall A3144 Acoplado à Relojoaria', 1.00, 18.00, 1, '2026-11-03 15:00:00'),
-(2, 1, 'ESP32-SONAR-CAIXA-001', 'ULTRASSONICO_CAIXA_DAGUA', 'Ultrassônico Impermeável JSN-SR04T + Pressão', 1.00, 18.00, 1, '2026-11-03 15:10:00'),
-(3, 2, 'ESP32-UNICAMP-REED-002', 'PULSO_RELOJOARIA_HIDROMETRO', 'Sensor Óptico/Magnético Relojoaria TCRT5000 + Hall', 1.00, 45.00, 1, '2026-11-04 09:00:00'),
-(4, 3, 'ESP32-UNICAMP-REED-003', 'PULSO_RELOJOARIA_HIDROMETRO', 'Reed Switch + Hall A3144 Acoplado à Relojoaria', 1.00, 25.00, 1, '2026-11-04 11:00:00'),
-(5, 4, 'ESP32-UNICAMP-REED-004', 'PULSO_RELOJOARIA_HIDROMETRO', 'Reed Switch + Hall A3144 Acoplado à Relojoaria', 1.00, 30.00, 1, '2026-11-04 14:30:00');
+INSERT INTO sensores_iot (id, imovel_id, codigo_dispositivo, tipo_sensor, fator_calibracao_pulsos_litro, limite_vazao_alerta_lpm, status_ativo) VALUES
+(1, 1, 'GC-001', 'FOTOTRANSISTOR', 1.00, 20.00, 1),
+(2, 1, 'GC-001-IR', 'LED_IR', 1.00, 20.00, 1),
+(3, 2, 'GC-002', 'FOTOTRANSISTOR', 1.00, 45.00, 1),
+(4, 3, 'GC-003', 'FOTOTRANSISTOR', 1.00, 25.00, 1),
+(5, 4, 'GC-004', 'FOTOTRANSISTOR', 1.00, 20.00, 1);
 
-INSERT INTO leituras_hidrometro (id, sensor_id, pulsos_registrados, vazao_instantanea_lpm, volume_acumulado_litros, nivel_caixa_percentual, pressao_rua_bar, data_hora_leitura) VALUES
-(1, 1, 144, 2.40, 14520.00, 88.00, 2.10, '2026-11-08 02:00:00'),
-(2, 1, 144, 2.40, 14664.00, 85.00, 2.10, '2026-11-08 03:00:00'),
-(3, 1, 144, 2.40, 14808.00, 82.00, 2.05, '2026-11-08 04:00:00'),
-(4, 1, 420, 7.00, 15228.00, 78.00, 1.90, '2026-11-08 08:00:00'),
-(5, 3, 600, 10.00, 62100.00, 92.00, 2.30, '2026-11-08 12:00:00'),
-(6, 3, 3510, 58.50, 65610.00, 48.00, 1.80, '2026-11-08 13:00:00'),
-(7, 4, 540, 9.00, 18400.00, 35.00, 0.40, '2026-11-08 14:00:00'),
-(8, 4, 480, 8.00, 18880.00, 16.50, 0.00, '2026-11-08 16:00:00'),
-(9, 5, 300, 5.00, 21300.00, 19.00, 0.00, '2026-11-08 16:05:00');
+INSERT INTO leituras_hidrometro (id, sensor_id, pulsos_registrados, vazao_instantanea_lpm, volume_acumulado_litros, intensidade_luz, data_hora_leitura) VALUES
+(1, 1, 0, 0.00, 1224432.00, 0.85, '2026-11-01 00:05:00'),
+(2, 1, 72, 1.20, 1230100.00, 0.18, '2026-11-08 02:00:00'),
+(3, 1, 72, 1.20, 1230172.00, 0.17, '2026-11-08 03:00:00'),
+(4, 1, 72, 1.20, 1230244.00, 0.18, '2026-11-08 04:00:00'),
+(5, 1, 350, 5.80, 1234582.00, 0.82, '2026-11-09 18:00:00'),
+(6, 3, 0, 0.00, 500000.00, 0.88, '2026-11-01 00:05:00'),
+(7, 3, 600, 10.00, 542100.00, 0.80, '2026-11-08 12:00:00'),
+(8, 3, 3510, 58.50, 545610.00, 0.15, '2026-11-08 13:00:00'),
+(9, 4, 0, 0.00, 800000.00, 0.86, '2026-11-01 00:05:00'),
+(10, 4, 540, 9.00, 821400.00, 0.79, '2026-11-08 16:00:00'),
+(11, 5, 0, 0.00, 310000.00, 0.87, '2026-11-01 00:05:00'),
+(12, 5, 24, 0.40, 314200.00, 0.20, '2026-11-09 03:30:00');
 
 INSERT INTO alertas_consumo (id, imovel_id, leitura_id, tipo_alerta, severidade, mensagem, desperdicio_estimado_litros, resolvido, data_geracao) VALUES
-(1, 1, 3, 'VAZAMENTO_OCULTO_MADRUGADA', 'MEDIA', 'Fluxo contínuo de 2.4 L/min detectado na relojoaria entre 02h e 04h da manhã. Verifique boia da caixa d''água e válvula de descarga.', 432.00, 0, '2026-11-08 04:01:00'),
-(2, 2, 6, 'CANO_ROMPIDO_PICO', 'CRITICA', 'Vazão crítica de 58.5 L/min ultrapassou o limite da escola (45 L/min). Possível rompimento de tubulação no pátio!', 3510.00, 0, '2026-11-08 13:01:00'),
-(3, 3, 8, 'CAIXA_DAGUA_CRITICA', 'CRITICA', 'Pressão da rede pública caiu a 0.0 bar e reservatório atingiu 16.5%. Autonomia estimada: menos de 2 horas.', 0.00, 0, '2026-11-08 16:01:00'),
-(4, 4, 9, 'FALTA_DAGUA_BAIRRO', 'MEDIA', 'Múltiplos sensores no bairro Vila Itaim detectaram pressão 0.0 bar na rede. Ative o plano comunitário de economia.', 0.00, 0, '2026-11-08 16:06:00');
+(1, 1, 4, 'VAZAMENTO_OCULTO_MADRUGADA', 'MEDIA', 'Água passando sem parar desde a meia-noite, cerca de 1,2 L/min. Confira a descarga e a boia da caixa.', 216.00, 0, '2026-11-08 04:12:00'),
+(2, 1, 5, 'META_MENSAL_ULTRAPASSADA', 'BAIXA', 'Você passou da meta do mês: já foram 10.150 litros, acima da meta de 10.000 litros.', 0.00, 0, '2026-11-09 18:01:00'),
+(3, 2, 8, 'CANO_ROMPIDO_PICO', 'CRITICA', 'Surto de vazão de 58,5 L/min ultrapassou o limite do imóvel (45,0 L/min). Possível cano rompido ou torneira aberta!', 3510.00, 0, '2026-11-08 13:01:00'),
+(4, 3, 10, 'META_MENSAL_ULTRAPASSADA', 'BAIXA', 'Consumo acumulado no mês atingiu 21.400 litros, ultrapassando a meta de 20.000 litros.', 0.00, 0, '2026-11-08 16:01:00'),
+(5, 4, 12, 'VAZAMENTO_OCULTO_MADRUGADA', 'MEDIA', 'Fluxo contínuo de 0,40 L/min na madrugada (24 L/h). Verifique se há válvula de descarga pingando.', 96.00, 0, '2026-11-09 03:31:00');

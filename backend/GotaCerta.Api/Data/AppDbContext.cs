@@ -45,11 +45,10 @@ public static class DbInitializer
 
         var admin = new Usuario
         {
-            Nome = "Antônio Schappo (Admin Defesa Hídrica)",
+            Nome = "Antônio Schappo (Gestor da Comunidade)",
             Email = "admin@gotacerta.org.br",
             SenhaHash = senhaPadraoHash,
-            Perfil = "ADMIN",
-            Telefone = "11999990001"
+            Perfil = "ADMIN"
         };
 
         var maria = new Usuario
@@ -57,17 +56,15 @@ public static class DbInitializer
             Nome = "Dona Maria Aparecida Silva",
             Email = "maria.silva@email.com",
             SenhaHash = senhaPadraoHash,
-            Perfil = "MORADOR",
-            Telefone = "11988881122"
+            Perfil = "MORADOR"
         };
 
         var escola = new Usuario
         {
-            Nome = "Carlos Eduardo Santos (Diretor Escolar)",
-            Email = "diretoria@emeluzdosaber.edu.br",
+            Nome = "Carlos Eduardo Santos (EMEI Luz do Saber)",
+            Email = "diretoria@emeiluzdosaber.edu.br",
             SenhaHash = senhaPadraoHash,
-            Perfil = "MORADOR",
-            Telefone = "11977773344"
+            Perfil = "MORADOR"
         };
 
         var padaria = new Usuario
@@ -75,170 +72,202 @@ public static class DbInitializer
             Nome = "Padaria Comunitária Pão da Vila",
             Email = "contato@paodavila.com.br",
             SenhaHash = senhaPadraoHash,
-            Perfil = "MORADOR",
-            Telefone = "11966665566"
+            Perfil = "MORADOR"
         };
 
-        context.Usuarios.AddRange(admin, maria, escola, padaria);
+        var joao = new Usuario
+        {
+            Nome = "João Pereira (Morador Vila Itaim)",
+            Email = "joao.pereira@email.com",
+            SenhaHash = senhaPadraoHash,
+            Perfil = "MORADOR"
+        };
+
+        context.Usuarios.AddRange(admin, maria, escola, padaria, joao);
         context.SaveChanges();
 
         var imovelMaria = new Imovel
         {
             UsuarioId = maria.Id,
             ApelidoLocal = "Residência Dona Maria",
-            TipoImovel = "RESIDENCIAL",
             Endereco = "Rua das Acácias, 142",
             Bairro = "Jardim Pantanal",
             Cep = "08090-100",
             NumeroSerieHidrometro = "HIDRO-LAO-2024-8891",
-            MetaConsumoMensalLitros = 12000m,
-            CapacidadeCaixaLitros = 1000m,
-            MoradoresAtendidos = 4
+            MetaConsumoMensalLitros = 10000m
         };
 
         var imovelEscola = new Imovel
         {
             UsuarioId = escola.Id,
             ApelidoLocal = "EMEI Luz do Saber",
-            TipoImovel = "ESCOLA_PUBLICA",
             Endereco = "Av. Esperança, 850",
             Bairro = "Jardim Pantanal",
             Cep = "08090-210",
             NumeroSerieHidrometro = "HIDRO-SABESP-2023-4410",
-            MetaConsumoMensalLitros = 85000m,
-            CapacidadeCaixaLitros = 10000m,
-            MoradoresAtendidos = 320
+            MetaConsumoMensalLitros = 80000m
         };
 
         var imovelPadaria = new Imovel
         {
             UsuarioId = padaria.Id,
             ApelidoLocal = "Padaria Pão da Vila",
-            TipoImovel = "COMERCIO",
             Endereco = "Rua Central, 55",
             Bairro = "Vila Itaim",
             Cep = "08110-030",
             NumeroSerieHidrometro = "HIDRO-ELSTER-2024-1102",
-            MetaConsumoMensalLitros = 25000m,
-            CapacidadeCaixaLitros = 2000m,
-            MoradoresAtendidos = 12
+            MetaConsumoMensalLitros = 20000m
         };
 
-        context.Imoveis.AddRange(imovelMaria, imovelEscola, imovelPadaria);
+        var imovelJoao = new Imovel
+        {
+            UsuarioId = joao.Id,
+            ApelidoLocal = "Casa do Sr. João Pereira",
+            Endereco = "Travessa União, 19",
+            Bairro = "Vila Itaim",
+            Cep = "08110-080",
+            NumeroSerieHidrometro = "HIDRO-ITRON-2022-9920",
+            MetaConsumoMensalLitros = 9000m
+        };
+
+        context.Imoveis.AddRange(imovelMaria, imovelEscola, imovelPadaria, imovelJoao);
         context.SaveChanges();
 
-        var sensorMariaRelojoaria = new SensorIoT
+        var sensorMariaFoto = new SensorIoT
         {
             ImovelId = imovelMaria.Id,
-            CodigoDispositivo = "ESP32-UNICAMP-REED-001",
-            TipoSensor = "PULSO_RELOJOARIA_HIDROMETRO",
-            ModeloHardware = "Reed Switch + Hall A3144 Acoplado à Relojoaria (Ref. PIBIC/UNICAMP)",
-            FatorPulsosPorLitro = 1.0m,
-            LimiteVazaoAlertaLpm = 18.0m,
-            Ativo = true
+            CodigoDispositivo = "GC-001",
+            TipoSensor = "FOTOTRANSISTOR",
+            FatorCalibracaoPulsosLitro = 1.0m,
+            LimiteVazaoAlertaLpm = 20.0m,
+            StatusAtivo = true
         };
 
-        var sensorMariaCaixa = new SensorIoT
+        var sensorMariaIr = new SensorIoT
         {
             ImovelId = imovelMaria.Id,
-            CodigoDispositivo = "ESP32-SONAR-CAIXA-001",
-            TipoSensor = "ULTRASSONICO_CAIXA_DAGUA",
-            ModeloHardware = "Ultrassônico Impermeável JSN-SR04T + Pressão",
-            FatorPulsosPorLitro = 1.0m,
-            LimiteVazaoAlertaLpm = 18.0m,
-            Ativo = true
+            CodigoDispositivo = "GC-001-IR",
+            TipoSensor = "LED_IR",
+            FatorCalibracaoPulsosLitro = 1.0m,
+            LimiteVazaoAlertaLpm = 20.0m,
+            StatusAtivo = true
         };
 
         var sensorEscola = new SensorIoT
         {
             ImovelId = imovelEscola.Id,
-            CodigoDispositivo = "ESP32-UNICAMP-REED-002",
-            TipoSensor = "PULSO_RELOJOARIA_HIDROMETRO",
-            ModeloHardware = "Sensor Óptico/Magnético Relojoaria TCRT5000 + Hall",
-            FatorPulsosPorLitro = 1.0m,
+            CodigoDispositivo = "GC-002",
+            TipoSensor = "FOTOTRANSISTOR",
+            FatorCalibracaoPulsosLitro = 1.0m,
             LimiteVazaoAlertaLpm = 45.0m,
-            Ativo = true
+            StatusAtivo = true
         };
 
         var sensorPadaria = new SensorIoT
         {
             ImovelId = imovelPadaria.Id,
-            CodigoDispositivo = "ESP32-UNICAMP-REED-003",
-            TipoSensor = "PULSO_RELOJOARIA_HIDROMETRO",
-            ModeloHardware = "Reed Switch + Hall A3144 Acoplado à Relojoaria",
-            FatorPulsosPorLitro = 1.0m,
+            CodigoDispositivo = "GC-003",
+            TipoSensor = "FOTOTRANSISTOR",
+            FatorCalibracaoPulsosLitro = 1.0m,
             LimiteVazaoAlertaLpm = 25.0m,
-            Ativo = true
+            StatusAtivo = true
         };
 
-        context.SensoresIoT.AddRange(sensorMariaRelojoaria, sensorMariaCaixa, sensorEscola, sensorPadaria);
+        var sensorJoao = new SensorIoT
+        {
+            ImovelId = imovelJoao.Id,
+            CodigoDispositivo = "GC-004",
+            TipoSensor = "FOTOTRANSISTOR",
+            FatorCalibracaoPulsosLitro = 1.0m,
+            LimiteVazaoAlertaLpm = 20.0m,
+            StatusAtivo = true
+        };
+
+        context.SensoresIoT.AddRange(sensorMariaFoto, sensorMariaIr, sensorEscola, sensorPadaria, sensorJoao);
         context.SaveChanges();
 
-        var leituraVazamentoMadrugada = new LeituraHidrometro
+        var lMariaInicio = new LeituraHidrometro
         {
-            SensorId = sensorMariaRelojoaria.Id,
-            PulsosRegistrados = 144,
-            VazaoInstantaneaLpm = 2.40m,
-            VolumeAcumuladoLitros = 14808.00m,
-            NivelCaixaPercentual = 82.00m,
-            PressaoRuaBar = 2.05m,
-            DataHoraLeitura = DateTime.UtcNow.AddHours(-4)
+            SensorId = sensorMariaFoto.Id,
+            PulsosRegistrados = 0,
+            VazaoInstantaneaLpm = 0.00m,
+            VolumeAcumuladoLitros = 1224432.00m,
+            IntensidadeLuz = 0.85m,
+            DataHoraLeitura = new DateTime(2026, 11, 1, 0, 5, 0, DateTimeKind.Utc)
         };
 
-        var leituraCanoRompido = new LeituraHidrometro
+        var lMariaMadrugada = new LeituraHidrometro
+        {
+            SensorId = sensorMariaFoto.Id,
+            PulsosRegistrados = 72,
+            VazaoInstantaneaLpm = 1.20m,
+            VolumeAcumuladoLitros = 1230244.00m,
+            IntensidadeLuz = 0.18m,
+            DataHoraLeitura = new DateTime(2026, 11, 8, 4, 0, 0, DateTimeKind.Utc)
+        };
+
+        var lMariaMeta = new LeituraHidrometro
+        {
+            SensorId = sensorMariaFoto.Id,
+            PulsosRegistrados = 350,
+            VazaoInstantaneaLpm = 5.80m,
+            VolumeAcumuladoLitros = 1234582.00m,
+            IntensidadeLuz = 0.82m,
+            DataHoraLeitura = new DateTime(2026, 11, 9, 18, 0, 0, DateTimeKind.Utc)
+        };
+
+        var lEscolaInicio = new LeituraHidrometro
+        {
+            SensorId = sensorEscola.Id,
+            PulsosRegistrados = 0,
+            VazaoInstantaneaLpm = 0.00m,
+            VolumeAcumuladoLitros = 500000.00m,
+            IntensidadeLuz = 0.88m,
+            DataHoraLeitura = new DateTime(2026, 11, 1, 0, 5, 0, DateTimeKind.Utc)
+        };
+
+        var lEscolaPico = new LeituraHidrometro
         {
             SensorId = sensorEscola.Id,
             PulsosRegistrados = 3510,
             VazaoInstantaneaLpm = 58.50m,
-            VolumeAcumuladoLitros = 65610.00m,
-            NivelCaixaPercentual = 48.00m,
-            PressaoRuaBar = 1.80m,
-            DataHoraLeitura = DateTime.UtcNow.AddHours(-2)
+            VolumeAcumuladoLitros = 545610.00m,
+            IntensidadeLuz = 0.15m,
+            DataHoraLeitura = new DateTime(2026, 11, 8, 13, 0, 0, DateTimeKind.Utc)
         };
 
-        var leituraCaixaCritica = new LeituraHidrometro
-        {
-            SensorId = sensorPadaria.Id,
-            PulsosRegistrados = 480,
-            VazaoInstantaneaLpm = 8.00m,
-            VolumeAcumuladoLitros = 18880.00m,
-            NivelCaixaPercentual = 16.50m,
-            PressaoRuaBar = 0.00m,
-            DataHoraLeitura = DateTime.UtcNow.AddHours(-1)
-        };
-
-        context.LeiturasHidrometro.AddRange(leituraVazamentoMadrugada, leituraCanoRompido, leituraCaixaCritica);
+        context.LeiturasHidrometro.AddRange(lMariaInicio, lMariaMadrugada, lMariaMeta, lEscolaInicio, lEscolaPico);
         context.SaveChanges();
 
         context.AlertasConsumo.AddRange(
             new AlertaConsumo
             {
                 ImovelId = imovelMaria.Id,
-                LeituraId = leituraVazamentoMadrugada.Id,
+                LeituraId = lMariaMadrugada.Id,
                 TipoAlerta = "VAZAMENTO_OCULTO_MADRUGADA",
                 Severidade = "MEDIA",
-                Mensagem = "Fluxo contínuo de 2.4 L/min detectado na relojoaria durante a madrugada. Verifique boia da caixa d'água e válvula de descarga.",
-                DesperdicioEstimadoLitros = 432.00m,
+                Mensagem = "Água passando sem parar desde a meia-noite, cerca de 1,2 L/min. Confira a descarga e a boia da caixa.",
+                DesperdicioEstimadoLitros = 216.00m,
+                Resolvido = false
+            },
+            new AlertaConsumo
+            {
+                ImovelId = imovelMaria.Id,
+                LeituraId = lMariaMeta.Id,
+                TipoAlerta = "META_MENSAL_ULTRAPASSADA",
+                Severidade = "BAIXA",
+                Mensagem = "Você passou da meta do mês: já foram 10.150 litros, acima da meta de 10.000 litros.",
+                DesperdicioEstimadoLitros = 0.00m,
                 Resolvido = false
             },
             new AlertaConsumo
             {
                 ImovelId = imovelEscola.Id,
-                LeituraId = leituraCanoRompido.Id,
+                LeituraId = lEscolaPico.Id,
                 TipoAlerta = "CANO_ROMPIDO_PICO",
                 Severidade = "CRITICA",
-                Mensagem = "Vazão crítica de 58.5 L/min ultrapassou o limite da escola (45 L/min). Possível rompimento de tubulação no pátio!",
+                Mensagem = "Surto de vazão de 58,5 L/min ultrapassou o limite do imóvel (45,0 L/min). Possível cano rompido!",
                 DesperdicioEstimadoLitros = 3510.00m,
-                Resolvido = false
-            },
-            new AlertaConsumo
-            {
-                ImovelId = imovelPadaria.Id,
-                LeituraId = leituraCaixaCritica.Id,
-                TipoAlerta = "CAIXA_DAGUA_CRITICA",
-                Severidade = "CRITICA",
-                Mensagem = "Pressão da rede pública caiu a 0.0 bar e reservatório atingiu 16.5%. Autonomia estimada: menos de 2 horas.",
-                DesperdicioEstimadoLitros = 0.00m,
                 Resolvido = false
             }
         );

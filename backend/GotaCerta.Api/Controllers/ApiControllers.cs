@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace GotaCerta.Api.Controllers;
 
 /// <summary>
-/// Endpoints de Autenticação e Segurança (Parte 5 - Vitória: Login com Hash, Registro e JWT RBAC).
+/// Endpoints de Autenticação e Segurança (Parte 5 - Vitória: BCrypt + JWT RBAC).
 /// </summary>
 [ApiController]
 [Route("api/auth")]
@@ -19,7 +19,30 @@ public class AuthController : ControllerBase
     public AuthController(IAuthService authService) => _authService = authService;
 
     /// <summary>
-    /// Autentica um cidadão ou administrador e retorna um Token JWT Bearer.
+    /// [1/14] POST /api/auth/register — Criar conta (senha vira hash BCrypt).
+    /// </summary>
+    [HttpPost("register")]
+    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> Register([FromBody] RegisterUsuarioDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var result = await _authService.RegisterAsync(dto);
+            return Created("/api/auth/login", result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { erro = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// [2/14] POST /api/auth/login — Entrar; devolve token JWT.
     /// </summary>
     [HttpPost("login")]
     [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
@@ -35,54 +58,37 @@ public class AuthController : ControllerBase
 
         return Ok(result);
     }
-
-    /// <summary>
-    /// Registra um novo usuário armazenando a senha exclusivamente em Hash PBKDF2-SHA256 com Salt.
-    /// </summary>
-    [HttpPost("register")]
-    [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Register([FromBody] RegisterUsuarioDto dto)
-    {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
-        try
-        {
-            var result = await _authService.RegisterAsync(dto);
-            return Created("/api/auth/login", result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { erro = ex.Message });
-        }
-    }
 }
 
 /// <summary>
-/// Gerenciamento de Imóveis e Hidrômetros Monitorados (CRUD completo: GET, POST, PUT, DELETE).
+/// Endpoints de Imóveis, Dashboard e Histórico (Páginas 14 e 17 do Guia do Grupo — Antônio).
 /// </summary>
 [ApiController]
 [Route("api/imoveis")]
 public class ImoveisController : ControllerBase
 {
     private readonly IImovelRepository _repo;
+    private readonly ITelemetriaService _telemetriaService;
 
-    public ImoveisController(IImovelRepository repo) => _repo = repo;
+    public ImoveisController(IImovelRepository repo, ITelemetriaService telemetriaService)
+    {
+        _repo = repo;
+        _telemetriaService = telemetriaService;
+    }
 
     /// <summary>
-    /// Lista todos os imóveis e hidrômetros monitorados (permite filtrar por bairro).
+    /// [3/14] GET /api/imoveis — Imóveis do usuário (gestor vê todos; permite filtrar por usuarioId ou bairro).
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(List<Imovel>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] string? bairro = null)
+    public async Task<IActionResult> GetAll([FromQuery] string? bairro = null, [FromQuery] int? usuarioId = null)
     {
-        var lista = await _repo.GetAllAsync(bairro);
+        var lista = await _repo.GetAllAsync(bairro, usuarioId);
         return Ok(lista);
     }
 
     /// <summary>
-    /// Retorna os detalhes de um imóvel específico, seus sensores IoT e histórico de alertas.
+    /// Busca detalhes completos de um imóvel específico por ID.
     /// </summary>
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(Imovel), StatusCodes.Status200OK)]
@@ -97,7 +103,38 @@ public class ImoveisController : ControllerBase
     }
 
     /// <summary>
-    /// Cadastra um novo imóvel e hidrômetro no sistema.
+    /// [10/14] GET /api/imoveis/{id}/dashboard — Vazão atual, consumo do mês (L e R$), meta do mês e alertas.
+    /// </summary>
+    [HttpGet("{id:int}/dashboard")]
+    [ProducesResponseType(typeof(ImovelDashboardDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetDashboard(int id)
+    {
+        var dash = await _telemetriaService.ObterDashboardImovelAsync(id);
+        if (dash is null)
+            return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
+
+        return Ok(dash);
+    }
+
+    /// <summary>
+    /// [11/14] GET /api/imoveis/{id}/historico — Consumo agrupado por dia para gráficos.
+    /// </summary>
+    [HttpGet("{id:int}/historico")]
+    [ProducesResponseType(typeof(List<ConsumoDiarioItemDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetHistorico(int id)
+    {
+        var imovel = await _repo.GetByIdAsync(id);
+        if (imovel is null)
+            return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
+
+        var historico = await _telemetriaService.ObterHistoricoDiarioImovelAsync(id);
+        return Ok(historico);
+    }
+
+    /// <summary>
+    /// [4/14] POST /api/imoveis — Cadastrar imóvel/hidrômetro.
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(Imovel), StatusCodes.Status201Created)]
@@ -111,14 +148,11 @@ public class ImoveisController : ControllerBase
         {
             UsuarioId = dto.UsuarioId,
             ApelidoLocal = dto.ApelidoLocal.Trim(),
-            TipoImovel = dto.TipoImovel,
             Endereco = dto.Endereco.Trim(),
             Bairro = dto.Bairro.Trim(),
             Cep = dto.Cep.Trim(),
             NumeroSerieHidrometro = dto.NumeroSerieHidrometro.Trim(),
-            MetaConsumoMensalLitros = dto.MetaConsumoMensalLitros,
-            CapacidadeCaixaLitros = dto.CapacidadeCaixaLitros,
-            MoradoresAtendidos = dto.MoradoresAtendidos
+            MetaConsumoMensalLitros = dto.MetaConsumoMensalLitros
         };
 
         var criado = await _repo.CreateAsync(novoImovel);
@@ -126,7 +160,7 @@ public class ImoveisController : ControllerBase
     }
 
     /// <summary>
-    /// Atualiza metas de consumo e capacidade do reservatório de um imóvel existente.
+    /// [5/14] PUT /api/imoveis/{id} — Alterar dados e meta do mês.
     /// </summary>
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(Imovel), StatusCodes.Status200OK)]
@@ -141,16 +175,16 @@ public class ImoveisController : ControllerBase
             return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
 
         existente.ApelidoLocal = dto.ApelidoLocal.Trim();
+        existente.Endereco = dto.Endereco.Trim();
+        existente.Bairro = dto.Bairro.Trim();
         existente.MetaConsumoMensalLitros = dto.MetaConsumoMensalLitros;
-        existente.CapacidadeCaixaLitros = dto.CapacidadeCaixaLitros;
-        existente.MoradoresAtendidos = dto.MoradoresAtendidos;
 
         var atualizado = await _repo.UpdateAsync(existente);
         return Ok(atualizado);
     }
 
     /// <summary>
-    /// Remove um imóvel monitorado (Requer perfil ADMIN no Token JWT — demonstração RBAC Parte 5).
+    /// [6/14] DELETE /api/imoveis/{id} — Remover imóvel (Requer perfil ADMIN no Token JWT — RBAC Parte 5).
     /// </summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "ADMIN")]
@@ -169,7 +203,7 @@ public class ImoveisController : ControllerBase
 }
 
 /// <summary>
-/// Endpoints de Sensores IoT, Telemetria de Hidrômetros (Luiz) e Alertas Automáticos.
+/// Endpoints de Sensores IoT, Leituras de Telemetria, Alertas e Painel do Gestor (Página 14 do Guia).
 /// </summary>
 [ApiController]
 [Route("api")]
@@ -190,17 +224,7 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// Retorna os indicadores consolidados para o Dashboard Mobile-First.
-    /// </summary>
-    [HttpGet("dashboard/resumo")]
-    [ProducesResponseType(typeof(DashboardResumoDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetResumoDashboard()
-    {
-        return Ok(await _telemetriaService.ObterResumoDashboardAsync());
-    }
-
-    /// <summary>
-    /// Lista os sensores IoT instalados (acoplados à relojoaria e ultrassônicos de caixa d'água).
+    /// Lista os sensores ópticos (LED_IR e FOTOTRANSISTOR) instalados nos hidrômetros.
     /// </summary>
     [HttpGet("sensores")]
     [ProducesResponseType(typeof(List<SensorIoT>), StatusCodes.Status200OK)]
@@ -210,7 +234,7 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// Cadastra um novo sensor IoT acoplado a um hidrômetro ou reservatório.
+    /// [7/14] POST /api/sensores — Registrar sensor no imóvel.
     /// </summary>
     [HttpPost("sensores")]
     [ProducesResponseType(typeof(SensorIoT), StatusCodes.Status201Created)]
@@ -225,14 +249,28 @@ public class TelemetriaAlertasController : ControllerBase
             ImovelId = dto.ImovelId,
             CodigoDispositivo = dto.CodigoDispositivo.Trim(),
             TipoSensor = dto.TipoSensor,
-            ModeloHardware = dto.ModeloHardware.Trim(),
-            FatorPulsosPorLitro = dto.FatorPulsosPorLitro,
+            FatorCalibracaoPulsosLitro = dto.FatorCalibracaoPulsosLitro,
             LimiteVazaoAlertaLpm = dto.LimiteVazaoAlertaLpm,
-            Ativo = true
+            StatusAtivo = true
         };
 
         var criado = await _sensorRepo.CreateAsync(sensor);
         return Created($"/api/sensores/{criado.Id}", criado);
+    }
+
+    /// <summary>
+    /// [8/14] DELETE /api/sensores/{id} — Remover sensor.
+    /// </summary>
+    [HttpDelete("sensores/{id:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteSensor(int id)
+    {
+        var removido = await _sensorRepo.DeleteAsync(id);
+        if (!removido)
+            return NotFound(new { erro = $"Sensor com ID {id} não encontrado." });
+
+        return NoContent();
     }
 
     /// <summary>
@@ -246,8 +284,7 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// Recebe um payload JSON do Simulador IoT (Luiz), grava a leitura da relojoaria do hidrômetro
-    /// e dispara alertas automáticos se detectar vazamento oculto, pico ou falta d'água.
+    /// [9/14] POST /api/leituras — Receber leitura do Simulador do Luiz e rodar os 3 gatilhos (Vazamento Oculto, Cano Rompido e Meta Mensal).
     /// </summary>
     [HttpPost("leituras")]
     [ProducesResponseType(typeof(LeituraProcessedResponseDto), StatusCodes.Status201Created)]
@@ -270,18 +307,19 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// Lista os alertas de vazamento e desabastecimento gerados na aplicação.
+    /// [12/14] GET /api/alertas — Alertas de vazamento e meta estourada.
     /// </summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(List<AlertaConsumo>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAlertas([FromQuery] bool? apenasAtivos = null)
+    public async Task<IActionResult> GetAlertas([FromQuery] bool? apenasAtivos = null, [FromQuery] int? imovelId = null)
     {
-        return Ok(await _leituraAlertaRepo.GetAlertasAsync(apenasAtivos));
+        return Ok(await _leituraAlertaRepo.GetAlertasAsync(apenasAtivos, imovelId));
     }
 
     /// <summary>
-    /// Marca um alerta de vazamento como resolvido após vistoria/reparo pelo morador ou técnico.
+    /// [13/14] PUT /api/alertas/{id} — Confirmar reparo (marca resolvido = true).
     /// </summary>
+    [HttpPut("alertas/{id:int}")]
     [HttpPut("alertas/{id:int}/resolver")]
     [ProducesResponseType(typeof(AlertaConsumo), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -309,5 +347,15 @@ public class TelemetriaAlertasController : ControllerBase
             return NotFound(new { erro = $"Alerta com ID {id} não encontrado." });
 
         return NoContent();
+    }
+
+    /// <summary>
+    /// [14/14] GET /api/bairros/alertas — Alertas e consumo consolidado por bairro (Painel do Gestor).
+    /// </summary>
+    [HttpGet("bairros/alertas")]
+    [ProducesResponseType(typeof(List<BairroAlertaResumoDto>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAlertasPorBairro()
+    {
+        return Ok(await _telemetriaService.ObterAlertasPorBairroAsync());
     }
 }

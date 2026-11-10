@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
 FIAP - Global Solution 2026/2 - CitizenTech (3ESOA)
-Projeto GotaCerta - Simulador de Telemetria IoT para Hidrômetros (Parte 6)
-Responsável: Luiz
+Projeto Gota Certa - Simulador de Telemetria IoT para Hidrômetros (Parte 6)
+Responsável: Luiz (Páginas 6, 7, 8, 9, 14 e 18 do Guia do Grupo)
 
-Baseado no artigo PIBIC/UNICAMP (Perissinotto & Manera, 2019):
-Simula o sensoriamento não-invasivo acoplado à relojoaria do hidrômetro
-(Sensor 1: Pulsos Magnéticos/Ópticos -> Vazão L/min e Volume Acumulado)
-combinado ao Sensor 2 (Ultrassônico de Nível da Caixa d'Água + Pressão da Rede).
+Simula o par óptico acoplado sobre o vidro da relojoaria do hidrômetro:
+- Sensor 1: LED_IR (emissor infravermelho que ilumina o ponteiro vermelho x0,0001)
+- Sensor 2: FOTOTRANSISTOR (mede a luz refletida 'intensidadeLuz' e conta cada volta = 1 pulso = 1 L)
 """
 
 import argparse
@@ -30,85 +29,76 @@ def enviar_telemetria(api_url: str, payload: dict) -> dict:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    print(f"\n[IoT -> API] Enviando payload JSON para {url}:")
+    print(f"\n[IoT -> API] POST {url}")
     print(json.dumps(payload, indent=2, ensure_ascii=False))
 
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             body = json.loads(resp.read().decode("utf-8"))
-            print(f"[API -> IoT] Status HTTP {resp.status}:")
+            print(f"[API -> IoT] HTTP {resp.status}:")
             print(json.dumps(body, indent=2, ensure_ascii=False))
             if body.get("alertaGerado"):
                 print(
-                    f"🚨 [ALERTA DISPARADO NA APLICAÇÃO] Tipo: {body.get('tipoAlertaGerado')} | "
-                    f"Mensagem: {body.get('mensagemAlerta')}"
+                    f"🚨 [ALERTA CRIADO] Tipos: {body.get('tiposAlertasGerados')} | "
+                    f"{body.get('mensagemResumo')}"
                 )
             else:
-                print("✅ [STATUS NORMAL] Nenhum alerta disparado.")
+                print("✅ [NORMAL] Nenhum gatilho disparado.")
             return body
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="ignore")
         print(f"❌ [ERRO HTTP {e.code}] {err_body}")
         return {}
     except Exception as e:
-        print(f"⚠️ [FALHA DE CONEXÃO COM A API] ({e})")
-        print("Dica: Certifique-se de que a API C# está rodando em", api_url)
+        print(f"⚠️ [SEM CONEXÃO COM A API] ({e})")
         return {}
 
 
 def obter_cenarios():
-    agora_iso = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    agora_iso = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
     madrugada_iso = datetime.datetime.now(datetime.timezone.utc).replace(
-        hour=3, minute=15, second=0, microsecond=0
-    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+        hour=3, minute=0, second=0, microsecond=0
+    ).strftime("%Y-%m-%dT%H:%M:%S")
 
     return {
         "normal": {
-            "titulo": "Cenário 1: Consumo Residencial Normal (Dona Maria)",
+            "titulo": "Modo 1: Consumo Normal Durante o Dia (Fundo branco reflete luz alta = 0.82)",
             "payload": {
-                "codigoDispositivo": "ESP32-UNICAMP-REED-001",
-                "pulsosRegistrados": 36,
-                "vazaoInstantaneaLpm": 6.0,
-                "volumeAcumuladoLitros": 15264.0,
-                "nivelCaixaPercentual": 84.0,
-                "pressaoRuaBar": 2.1,
-                "dataHoraLeitura": agora_iso,
+                "codigoDispositivo": "GC-001",
+                "dataHora": agora_iso,
+                "pulsosUltimoMinuto": 4,
+                "leituraAcumuladaLitros": 1228500.0,
+                "intensidadeLuz": 0.82,
             },
         },
         "vazamento-madrugada": {
-            "titulo": "Cenário 2: Vazamento Oculto Contínuo às 03h15 da Manhã (Sensor Relojoaria)",
+            "titulo": "Modo 2: Vazamento Oculto às 03h00 da Manhã (Ponteiro passando sem parar, luz cai p/ 0.18)",
             "payload": {
-                "codigoDispositivo": "ESP32-UNICAMP-REED-001",
-                "pulsosRegistrados": 168,
-                "vazaoInstantaneaLpm": 2.8,
-                "volumeAcumuladoLitros": 15432.0,
-                "nivelCaixaPercentual": 79.5,
-                "pressaoRuaBar": 2.0,
-                "dataHoraLeitura": madrugada_iso,
+                "codigoDispositivo": "GC-001",
+                "dataHora": madrugada_iso,
+                "pulsosUltimoMinuto": 1,
+                "leituraAcumuladaLitros": 1230300.0,
+                "intensidadeLuz": 0.18,
             },
         },
         "cano-rompido": {
-            "titulo": "Cenário 3: Surto de Vazão / Cano Rompido na Escola Pública (EMEI Luz do Saber)",
+            "titulo": "Modo 3: Surto de Vazão / Cano Rompido na Escola (60 voltas/min > limite de 45 L/min)",
             "payload": {
-                "codigoDispositivo": "ESP32-UNICAMP-REED-002",
-                "pulsosRegistrados": 3720,
-                "vazaoInstantaneaLpm": 62.0,
-                "volumeAcumuladoLitros": 69330.0,
-                "nivelCaixaPercentual": 41.0,
-                "pressaoRuaBar": 1.7,
-                "dataHoraLeitura": agora_iso,
+                "codigoDispositivo": "GC-002",
+                "dataHora": agora_iso,
+                "pulsosUltimoMinuto": 60,
+                "leituraAcumuladaLitros": 546000.0,
+                "intensidadeLuz": 0.15,
             },
         },
-        "falta-dagua": {
-            "titulo": "Cenário 4: Queda de Pressão na Rua + Caixa d'Água Crítica (Sensor Ultrassônico)",
+        "meta-estourada": {
+            "titulo": "Modo 4: Consumo Acumulado no Mês Ultrapassa a Meta Mensal (Gatilho 3)",
             "payload": {
-                "codigoDispositivo": "ESP32-SONAR-CAIXA-001",
-                "pulsosRegistrados": 12,
-                "vazaoInstantaneaLpm": 2.0,
-                "volumeAcumuladoLitros": 15444.0,
-                "nivelCaixaPercentual": 14.5,
-                "pressaoRuaBar": 0.0,
-                "dataHoraLeitura": agora_iso,
+                "codigoDispositivo": "GC-003",
+                "dataHora": agora_iso,
+                "pulsosUltimoMinuto": 8,
+                "leituraAcumuladaLitros": 822500.0,
+                "intensidadeLuz": 0.78,
             },
         },
     }
@@ -116,42 +106,31 @@ def obter_cenarios():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Simulador de Telemetria IoT GotaCerta (Hidrômetro Relojoaria + Ultrassônico)"
+        description="Simulador de Telemetria Óptica Gota Certa (LED IR + Fototransistor)"
     )
-    parser.add_argument(
-        "--api-url",
-        default=DEFAULT_API_URL,
-        help=f"URL base da API RESTful (padrão: {DEFAULT_API_URL})",
-    )
+    parser.add_argument("--api-url", default=DEFAULT_API_URL)
     parser.add_argument(
         "--mode",
-        choices=["demo", "normal", "vazamento-madrugada", "cano-rompido", "falta-dagua"],
+        choices=["demo", "normal", "vazamento-madrugada", "cano-rompido", "meta-estourada"],
         default="demo",
-        help="Cenário de simulação a ser enviado para a API",
     )
-    parser.add_argument(
-        "--delay",
-        type=float,
-        default=1.5,
-        help="Intervalo em segundos entre envios no modo demo",
-    )
+    parser.add_argument("--delay", type=float, default=1.5)
 
     args = parser.parse_args()
     cenarios = obter_cenarios()
 
-    print("=" * 72)
-    print("💧 GOTACERTA IoT TELEMETRY SIMULATOR (Ref. PIBIC/UNICAMP)")
-    print("Sensores: [1] Pulso Relojoaria Hidrômetro | [2] Ultrassônico Caixa d'Água")
-    print("=" * 72)
+    print("=" * 74)
+    print("💧 GOTA CERTA — SIMULADOR DE TELEMETRIA ÓPTICA (LED IR + FOTOTRANSISTOR)")
+    print("=" * 74)
 
     if args.mode == "demo":
-        for chave, item in cenarios.items():
-            print(f"\n>>> Executando {item['titulo']}...")
+        for _, item in cenarios.items():
+            print(f"\n>>> {item['titulo']}")
             enviar_telemetria(args.api_url, item["payload"])
             time.sleep(args.delay)
     else:
         item = cenarios[args.mode]
-        print(f"\n>>> Executando {item['titulo']}...")
+        print(f"\n>>> {item['titulo']}")
         enviar_telemetria(args.api_url, item["payload"])
 
 
