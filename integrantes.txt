@@ -1,0 +1,19 @@
+====================================================================
+FIAP - GLOBAL SOLUTION 2026/2 - CITIZENTECH
+CURSO: ENGENHARIA DE SOFTWARE (3º ANO - TURMA 3ESOA)
+GRUPO: GEPETTO - PROJETO GOTACERTA
+====================================================================
+
+INTEGRANTES DO GRUPO:
+1. Antônio Aloísio Schappo Neto - RM: 556429 (Backend API RESTful & Banco de Dados)
+2. Luiz [PREENCHER SOBRENOME]   - RM: [PREENCHER RM] (Simulação de IoT & Telemetria Hidrômetro)
+3. Vitória [PREENCHER SOBRENOME]- RM: [PREENCHER RM] (Segurança da Informação & DevSecOps)
+4. Danilo [PREENCHER SOBRENOME] - RM: [PREENCHER RM] (Frontend Web Mobile-First)
+5. João [PREENCHER SOBRENOME]   - RM: [PREENCHER RM] (Plano de Testes, QA & Vídeo Pitch)
+
+LINK DO VÍDEO PITCH (PÚBLICO - ATÉ 3 MINUTOS):
+https://youtu.be/[INSERIR_LINK_PUBLICO_AQUI_ANTES_DE_ENTREGAR]
+
+REPOSITÓRIO GITHUB DO PROJETO:
+https://github.com/Gepetto-FIAP/gotacerta-citizentech
+====================================================================

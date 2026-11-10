@@ -1,0 +1,56 @@
+services:
+  # 1. Banco de Dados Relacional MySQL 8 (Inicializa automaticamente com 01_schema_seed_mysql.sql)
+  mysql:
+    image: mysql:8.0
+    container_name: gotacerta-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword123
+      MYSQL_DATABASE: gotacerta_db
+      MYSQL_USER: gotacerta
+      MYSQL_PASSWORD: gotacerta123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/01_schema_seed_mysql.sql:/docker-entrypoint-initdb.d/01_schema_seed_mysql.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 2. Backend API RESTful em C# ASP.NET Core 8 (Suporta SQLite padrão ou MySQL)
+  backend-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gotacerta-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Altere para "MySql" caso deseje apontar para o container mysql acima, ou mantenha "Sqlite"
+      DatabaseProvider: "Sqlite"
+      ConnectionStrings__SqliteConnection: "Data Source=/app/data/gotacerta.db"
+      ConnectionStrings__MySqlConnection: "Server=mysql;Port=3306;Database=gotacerta_db;User=gotacerta;Password=gotacerta123;"
+    volumes:
+      - sqlite_data:/app/data
+
+  # 3. Frontend Web Mobile-First (Next.js + Tailwind CSS)
+  frontend-mobile:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: gotacerta-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:8080"
+    depends_on:
+      - backend-api
+
+volumes:
+  mysql_data:
+  sqlite_data:
