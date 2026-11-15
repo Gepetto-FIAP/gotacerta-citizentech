@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "author": "Gota Certa \u00b7 Luiz",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-esp32-devkit-v1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledIr",
+      "top": -96,
+      "left": 172,
+      "attrs": {
+        "color": "red",
+        "label": "LED IR"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -24,
+      "left": 134,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "ledPulso",
+      "top": -96,
+      "left": 230,
+      "attrs": {
+        "color": "green",
+        "label": "Pulso (1 L)"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": -24,
+      "left": 192,
+      "rotate": 90,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "type": "wokwi-photoresistor-sensor",
+      "id": "ldr",
+      "top": 160,
+      "left": 170,
+      "attrs": {
+        "lux": "5"
+      }
+    },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "registro",
+      "top": -110,
+      "left": -130,
+      "attrs": {
+        "label": "Registro"
+      }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "descarga",
+      "top": 200,
+      "left": -150,
+      "attrs": {
+        "color": "blue",
+        "label": "Descarga"
+      }
+    }
+  ],
+  "connections": [
+    [
+      "esp:TX0",
+      "$serialMonitor:RX",
+      "",
+      []
+    ],
+    [
+      "esp:RX0",
+      "$serialMonitor:TX",
+      "",
+      []
+    ],
+    [
+      "esp:D26",
+      "r1:1",
+      "red",
+      []
+    ],
+    [
+      "r1:2",
+      "ledIr:A",
+      "red",
+      []
+    ],
+    [
+      "ledIr:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "esp:D27",
+      "r2:1",
+      "green",
+      []
+    ],
+    [
+      "r2:2",
+      "ledPulso:A",
+      "green",
+      []
+    ],
+    [
+      "ledPulso:C",
+      "esp:GND.1",
+      "black",
+      []
+    ],
+    [
+      "registro:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "registro:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "registro:SIG",
+      "esp:D34",
+      "orange",
+      []
+    ],
+    [
+      "ldr:VCC",
+      "esp:3V3",
+      "red",
+      []
+    ],
+    [
+      "ldr:GND",
+      "esp:GND.2",
+      "black",
+      []
+    ],
+    [
+      "ldr:AO",
+      "esp:D35",
+      "purple",
+      []
+    ],
+    [
+      "descarga:1.l",
+      "esp:D14",
+      "blue",
+      []
+    ],
+    [
+      "descarga:2.l",
+      "esp:GND.1",
+      "black",
+      []
+    ]
+  ],
+  "dependencies": {}
+}

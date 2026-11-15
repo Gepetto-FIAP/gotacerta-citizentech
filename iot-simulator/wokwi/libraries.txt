@@ -1,0 +1,2 @@
+# Bibliotecas que o Wokwi instala para este projeto
+PubSubClient
