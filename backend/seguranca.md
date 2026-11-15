@@ -78,7 +78,7 @@ Cuidados extras:
 
 ---
 
-## 5. Requisições bloqueadas (evidências para o PDF)
+## 5. Requisições bloqueadas 
 
 Pré-requisitos: API rodando em `http://localhost:8080`, logins de teste do README e um **segundo morador** cadastrado (por exemplo `teste3.morador@email.com`) com um imóvel próprio. Swagger (botão **Authorize**).
 
