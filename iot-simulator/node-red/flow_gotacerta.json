@@ -1,0 +1,286 @@
+[
+    {
+        "id": "57b322ec2e1829d0",
+        "type": "tab",
+        "label": "Gota Certa · IoT",
+        "disabled": false,
+        "info": "ESP32 no Wokwi → MQTT (HiveMQ) → este fluxo → POST /api/leituras da API C#.\nParte 6 · Luiz."
+    },
+    {
+        "id": "f996754f7529e264",
+        "type": "comment",
+        "z": "57b322ec2e1829d0",
+        "name": "1) ESP32 publica no HiveMQ  2) valida e separa os 2 sensores  3) POST na API  4) mostra alertas",
+        "info": "Endereço da API: variável de ambiente API_BASE_URL (padrão http://localhost:8080).",
+        "x": 330,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "919f14f69ea66572",
+        "type": "mqtt in",
+        "z": "57b322ec2e1829d0",
+        "name": "Leituras do hidrômetro",
+        "topic": "fiap/3esoa/gotacerta/leituras",
+        "qos": "1",
+        "datatype": "json",
+        "broker": "gc_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 120,
+        "wires": [
+            [
+                "51feab2d0178abb3",
+                "6436682475c0eec4"
+            ]
+        ]
+    },
+    {
+        "id": "825335a847b43702",
+        "type": "inject",
+        "z": "57b322ec2e1829d0",
+        "name": "Teste sem Wokwi (vazamento 02:30)",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "{\"codigoDispositivo\": \"GC-001\", \"dataHora\": \"2026-11-15T02:30:00\", \"pulsosRegistrados\": 3, \"vazaoInstantaneaLpm\": 0.3, \"leituraAcumuladaLitros\": 1234592.0, \"intensidadeLuz\": 0.17, \"luzExternaLux\": 0, \"tampaAberta\": false}",
+        "payloadType": "json",
+        "x": 180,
+        "y": 180,
+        "wires": [
+            [
+                "51feab2d0178abb3"
+            ]
+        ]
+    },
+    {
+        "id": "6436682475c0eec4",
+        "type": "debug",
+        "z": "57b322ec2e1829d0",
+        "name": "Leitura recebida",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 420,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "51feab2d0178abb3",
+        "type": "function",
+        "z": "57b322ec2e1829d0",
+        "name": "Validar leitura",
+        "func": "// Confere a leitura do ESP32 e separa os dois sensores.\n// Saída 1: dados do Sensor 1 (água) para a API.  Saída 2: alerta do Sensor 2 (tampa).\nconst l = msg.payload;\nif (typeof l !== \"object\" || l === null || !l.codigoDispositivo) {\n    node.warn(\"Mensagem ignorada: não é uma leitura da Gota Certa\");\n    node.status({ fill: \"yellow\", shape: \"ring\", text: \"mensagem inválida\" });\n    return null;\n}\nconst hora = (l.dataHora || \"\").slice(11, 16);\n\n// SENSOR 2 · tampa: avisa só quando muda de fechada para aberta (sem repetir)\nlet alertaTampa = null;\nconst chave = \"tampa_\" + l.codigoDispositivo;\nconst estavaAberta = flow.get(chave) || false;\nif (l.tampaAberta === true && !estavaAberta) {\n    alertaTampa = { payload: { dispositivo: l.codigoDispositivo, hora,\n        alertas: [\"TAMPA_VIOLADA\"],\n        mensagem: `Tampa do dispositivo aberta (${l.luzExternaLux} lux). Possível fraude ou vandalismo.` } };\n}\nif (typeof l.tampaAberta === \"boolean\") flow.set(chave, l.tampaAberta);\n\n// SENSOR 1 · água: manda para a API só os campos que ela conhece\nconst leitura = {\n    codigoDispositivo: l.codigoDispositivo,\n    dataHora: l.dataHora,\n    pulsosRegistrados: l.pulsosRegistrados,\n    vazaoInstantaneaLpm: l.vazaoInstantaneaLpm,\n    leituraAcumuladaLitros: l.leituraAcumuladaLitros,\n    intensidadeLuz: l.intensidadeLuz\n};\nconst base = env.get(\"API_BASE_URL\") || \"http://localhost:8080\";\nmsg.payload = leitura;\nmsg.leitura = leitura;                 // guarda o original para a fila, se a API cair\nmsg.url = base + \"/api/leituras\";\nmsg.method = \"POST\";\nmsg.headers = { \"Content-Type\": \"application/json\" };\nnode.status({ fill: l.tampaAberta ? \"red\" : \"blue\", shape: \"dot\",\n    text: `${l.codigoDispositivo} ${hora} · ${l.vazaoInstantaneaLpm} L/min` + (l.tampaAberta ? \" · TAMPA ABERTA\" : \"\") });\nreturn [msg, alertaTampa];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 410,
+        "y": 140,
+        "wires": [
+            [
+                "aa1587a3a82d9854"
+            ],
+            [
+                "e9566aafeebf1dbb"
+            ]
+        ]
+    },
+    {
+        "id": "aa1587a3a82d9854",
+        "type": "http request",
+        "z": "57b322ec2e1829d0",
+        "name": "POST /api/leituras",
+        "method": "use",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 620,
+        "y": 140,
+        "wires": [
+            [
+                "e84813ec5fcbfd97"
+            ]
+        ]
+    },
+    {
+        "id": "e84813ec5fcbfd97",
+        "type": "function",
+        "z": "57b322ec2e1829d0",
+        "name": "Interpretar resposta",
+        "func": "// Lê a resposta da API. Saída 1: leitura aceita. Saída 2: alerta gerado.\nconst st = msg.statusCode;\nconst l = msg.leitura || {};\nconst hora = (l.dataHora || \"\").slice(11, 16);\nif (typeof st !== \"number\" || st >= 500) {\n    // API fora do ar (ou erro do servidor): guarda e tenta de novo depois\n    const fila = flow.get(\"fila\") || [];\n    fila.push(l);\n    flow.set(\"fila\", fila);\n    node.status({ fill: \"red\", shape: \"ring\", text: `API fora do ar · ${fila.length} na fila` });\n    node.warn(`API indisponível (${st}). Leitura de ${hora} guardada na fila.`);\n    return null;\n}\nif (st >= 400) {\n    // Dado errado (400) ou dispositivo não cadastrado (404): repetir não resolve\n    node.status({ fill: \"yellow\", shape: \"dot\", text: `${st} rejeitada · ${hora}` });\n    node.warn(`Leitura rejeitada (${st}): ${JSON.stringify(msg.payload)}`);\n    return null;\n}\nconst r = msg.payload || {};\nif (r.alertaGerado) {\n    const tipos = (r.tiposAlertasGerados || []).join(\", \");\n    node.status({ fill: \"red\", shape: \"dot\", text: `🚨 ${hora} ${tipos}` });\n    return [null, { payload: { dispositivo: r.codigoDispositivo, hora, alertas: r.tiposAlertasGerados, mensagem: r.mensagemResumo } }];\n}\nnode.status({ fill: \"green\", shape: \"dot\", text: `${st} ok · ${hora} · sem alerta` });\nreturn [msg, null];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 840,
+        "y": 140,
+        "wires": [
+            [
+                "ab76110f19998e0a"
+            ],
+            [
+                "e9566aafeebf1dbb"
+            ]
+        ]
+    },
+    {
+        "id": "ab76110f19998e0a",
+        "type": "debug",
+        "z": "57b322ec2e1829d0",
+        "name": "Resposta da API",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1060,
+        "y": 120,
+        "wires": []
+    },
+    {
+        "id": "e9566aafeebf1dbb",
+        "type": "debug",
+        "z": "57b322ec2e1829d0",
+        "name": "Alertas",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1040,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "c179c386c735ee73",
+        "type": "inject",
+        "z": "57b322ec2e1829d0",
+        "name": "a cada 15 s",
+        "props": [],
+        "repeat": "15",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "x": 150,
+        "y": 280,
+        "wires": [
+            [
+                "9072503008b8630d"
+            ]
+        ]
+    },
+    {
+        "id": "9072503008b8630d",
+        "type": "function",
+        "z": "57b322ec2e1829d0",
+        "name": "Reenviar fila",
+        "func": "// A cada 15 s, se houver leituras guardadas, manda de novo (na ordem).\nconst fila = flow.get(\"fila\") || [];\nif (fila.length === 0) { node.status({}); return null; }\nflow.set(\"fila\", []);\nnode.status({ fill: \"blue\", shape: \"dot\", text: `reenviando ${fila.length}` });\nreturn [fila.map(l => ({ payload: l }))];",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 410,
+        "y": 280,
+        "wires": [
+            [
+                "51feab2d0178abb3"
+            ]
+        ]
+    },
+    {
+        "id": "3be12737938c040f",
+        "type": "catch",
+        "z": "57b322ec2e1829d0",
+        "name": "Erros do fluxo",
+        "scope": null,
+        "uncaught": false,
+        "x": 140,
+        "y": 340,
+        "wires": [
+            [
+                "6371a1f46d70c0e5"
+            ]
+        ]
+    },
+    {
+        "id": "6371a1f46d70c0e5",
+        "type": "debug",
+        "z": "57b322ec2e1829d0",
+        "name": "Erro",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 410,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "gc_broker",
+        "type": "mqtt-broker",
+        "name": "HiveMQ público",
+        "broker": "broker.hivemq.com",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    }
+]
