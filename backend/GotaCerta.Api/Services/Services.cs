@@ -75,7 +75,7 @@ public class AuthService : IAuthService
             Nome = dto.Nome.Trim(),
             Email = emailNormalizado,
             SenhaHash = PasswordHasher.HashPassword(dto.Senha),
-            Perfil = dto.Perfil.ToUpperInvariant()
+            Perfil = "MORADOR"
         };
 
         _context.Usuarios.Add(novoUsuario);

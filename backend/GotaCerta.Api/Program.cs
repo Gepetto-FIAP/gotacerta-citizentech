@@ -1,9 +1,11 @@
 using System.Reflection;
 using System.Text;
+using System.Threading.RateLimiting;
 using GotaCerta.Api.Data;
 using GotaCerta.Api.Repositories;
 using GotaCerta.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -34,7 +36,13 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITelemetriaService, TelemetriaService>();
 
 // 3. Configuração de Autenticação JWT Bearer e Controle de Acesso (RBAC - Parte 5 Vitória)
-var jwtSecret = builder.Configuration["JwtSettings:SecretKey"] ?? "GotaCerta_FIAP_GlobalSolution_2026_ChaveSecretaSuperSegura_3ESOA!";
+// A chave é lida na MESMA ordem usada pelo AuthService (variável de ambiente > appsettings > padrão de dev).
+// Antes, o Program.cs ignorava a variável JWT_SECRET_KEY e o AuthService não: se ela fosse definida
+// (ex.: no Docker), os tokens seriam assinados com uma chave e validados com outra, e tudo daria 401.
+const string ChavePadraoDev = "GotaCerta_FIAP_GlobalSolution_2026_ChaveSecretaSuperSegura_3ESOA!";
+var jwtSecretConfigurado = Environment.GetEnvironmentVariable("JWT_SECRET_KEY")
+    ?? builder.Configuration["JwtSettings:SecretKey"];
+var jwtSecret = jwtSecretConfigurado ?? ChavePadraoDev;
 var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "GotaCerta.Api";
 var jwtAudience = builder.Configuration["JwtSettings:Audience"] ?? "GotaCerta.Client";
 
@@ -59,6 +67,22 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+
+// 3.1 Limite de tentativas no login (anti força bruta — OWASP Authentication Failures).
+// 10 requisições por minuto por IP; acima disso a API responde 429 Too Many Requests.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "desconhecido",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
 
 // 4. CORS liberado para o Frontend Mobile-First (Next.js do Danilo)
 builder.Services.AddCors(options =>
@@ -109,12 +133,24 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+if (jwtSecretConfigurado is null)
+    app.Logger.LogWarning("JWT: usando a chave padrão de DESENVOLVIMENTO. Em produção defina a variável de ambiente JWT_SECRET_KEY.");
+
 // Inicializa e popula o banco automaticamente no primeiro boot
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     DbInitializer.Seed(db);
 }
+
+// Cabeçalhos de segurança básicos (OWASP Security Misconfiguration)
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    context.Response.Headers["X-Frame-Options"] = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    await next();
+});
 
 app.UseCors("AllowFrontend");
 app.UseSwagger();
@@ -124,6 +160,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

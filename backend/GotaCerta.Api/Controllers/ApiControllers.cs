@@ -1,14 +1,44 @@
+using System.Security.Claims;
 using GotaCerta.Api.DTOs;
 using GotaCerta.Api.Models;
 using GotaCerta.Api.Repositories;
 using GotaCerta.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace GotaCerta.Api.Controllers;
 
 /// <summary>
+/// Base dos controllers protegidos  lê a identidade do JWT e aplica a "Regra do Dono".
+/// MORADOR só acessa o que é dele; ADMIN (Gestor) acessa tudo.
+/// </summary>
+public abstract class ApiControllerBase : ControllerBase
+{
+    /// <summary>ID do usuário logado, vindo da claim NameIdentifier (ou "sub") do JWT.</summary>
+    protected int? UsuarioLogadoId()
+    {
+        var valor = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+        return int.TryParse(valor, out var id) ? id : null;
+    }
+
+    /// <summary>True se o token tem o perfil ADMIN.</summary>
+    protected bool EhAdmin() =>
+        User.IsInRole("ADMIN") ||
+        User.HasClaim(c => (c.Type == ClaimTypes.Role || c.Type == "role") && c.Value == "ADMIN");
+
+    /// <summary>Regra do Dono: ADMIN pode tudo; MORADOR só se imovel.UsuarioId == usuário logado.</summary>
+    protected bool PodeAcessarImovel(Imovel imovel)
+    {
+        if (EhAdmin()) return true;
+        var uid = UsuarioLogadoId();
+        return uid.HasValue && imovel.UsuarioId == uid.Value;
+    }
+}
+
+/// <summary>
 /// Endpoints de Autenticação e Segurança (Parte 5 - Vitória: BCrypt + JWT RBAC).
+/// Rotas públicas: é aqui que o token nasce.
 /// </summary>
 [ApiController]
 [Route("api/auth")]
@@ -43,10 +73,13 @@ public class AuthController : ControllerBase
 
     /// <summary>
     /// [2/14] POST /api/auth/login — Entrar; devolve token JWT.
+    /// Limite de tentativas (política "login" no Program.cs): acima disso devolve 429 (anti força bruta).
     /// </summary>
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto dto)
     {
         if (!ModelState.IsValid)
@@ -62,10 +95,14 @@ public class AuthController : ControllerBase
 
 /// <summary>
 /// Endpoints de Imóveis, Dashboard e Histórico (Páginas 14 e 17 do Guia do Grupo — Antônio).
+/// Protegidos pela Regra do Dono sem token = 401; token de outro dono = 403.
 /// </summary>
 [ApiController]
 [Route("api/imoveis")]
-public class ImoveisController : ControllerBase
+[Authorize]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
+public class ImoveisController : ApiControllerBase
 {
     private readonly IImovelRepository _repo;
     private readonly ITelemetriaService _telemetriaService;
@@ -77,18 +114,23 @@ public class ImoveisController : ControllerBase
     }
 
     /// <summary>
-    /// [3/14] GET /api/imoveis — Imóveis do usuário (gestor vê todos; permite filtrar por usuarioId ou bairro).
+    /// [3/14] GET /api/imoveis — MORADOR vê só os seus imóveis; ADMIN vê todos (e pode filtrar por usuarioId ou bairro).
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(List<Imovel>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll([FromQuery] string? bairro = null, [FromQuery] int? usuarioId = null)
     {
-        var lista = await _repo.GetAllAsync(bairro, usuarioId);
+        // Morador: o filtro vem SEMPRE do token, nunca da query string (evita ?usuarioId=outro).
+        if (!EhAdmin() && UsuarioLogadoId() is null)
+            return Unauthorized();
+
+        var filtroUsuario = EhAdmin() ? usuarioId : UsuarioLogadoId();
+        var lista = await _repo.GetAllAsync(bairro, filtroUsuario);
         return Ok(lista);
     }
 
     /// <summary>
-    /// Busca detalhes completos de um imóvel específico por ID.
+    /// Busca detalhes completos de um imóvel específico por ID (só o dono ou ADMIN).
     /// </summary>
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(Imovel), StatusCodes.Status200OK)]
@@ -99,17 +141,27 @@ public class ImoveisController : ControllerBase
         if (imovel is null)
             return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
 
+        if (!PodeAcessarImovel(imovel))
+            return Forbid();
+
         return Ok(imovel);
     }
 
     /// <summary>
-    /// [10/14] GET /api/imoveis/{id}/dashboard — Vazão atual, consumo do mês (L e R$), meta do mês e alertas.
+    /// [10/14] GET /api/imoveis/{id}/dashboard — Vazão atual, consumo do mês (L e R$), meta do mês e alertas (só o dono ou ADMIN).
     /// </summary>
     [HttpGet("{id:int}/dashboard")]
     [ProducesResponseType(typeof(ImovelDashboardDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetDashboard(int id)
     {
+        var imovel = await _repo.GetByIdAsync(id);
+        if (imovel is null)
+            return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
+
+        if (!PodeAcessarImovel(imovel))
+            return Forbid();
+
         var dash = await _telemetriaService.ObterDashboardImovelAsync(id);
         if (dash is null)
             return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
@@ -118,7 +170,7 @@ public class ImoveisController : ControllerBase
     }
 
     /// <summary>
-    /// [11/14] GET /api/imoveis/{id}/historico — Consumo agrupado por dia para gráficos.
+    /// [11/14] GET /api/imoveis/{id}/historico — Consumo agrupado por dia para gráficos (só o dono ou ADMIN).
     /// </summary>
     [HttpGet("{id:int}/historico")]
     [ProducesResponseType(typeof(List<ConsumoDiarioItemDto>), StatusCodes.Status200OK)]
@@ -129,12 +181,16 @@ public class ImoveisController : ControllerBase
         if (imovel is null)
             return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
 
+        if (!PodeAcessarImovel(imovel))
+            return Forbid();
+
         var historico = await _telemetriaService.ObterHistoricoDiarioImovelAsync(id);
         return Ok(historico);
     }
 
     /// <summary>
     /// [4/14] POST /api/imoveis — Cadastrar imóvel/hidrômetro.
+    /// MORADOR sempre cadastra para si mesmo; só ADMIN pode informar outro usuarioId.
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(Imovel), StatusCodes.Status201Created)]
@@ -144,9 +200,14 @@ public class ImoveisController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        // o dono vem do token, não do corpo da requisição (exceto ADMIN).
+        var donoId = EhAdmin() ? dto.UsuarioId : UsuarioLogadoId();
+        if (donoId is null)
+            return Unauthorized();
+
         var novoImovel = new Imovel
         {
-            UsuarioId = dto.UsuarioId,
+            UsuarioId = donoId.Value,
             ApelidoLocal = dto.ApelidoLocal.Trim(),
             Endereco = dto.Endereco.Trim(),
             Bairro = dto.Bairro.Trim(),
@@ -160,7 +221,7 @@ public class ImoveisController : ControllerBase
     }
 
     /// <summary>
-    /// [5/14] PUT /api/imoveis/{id} — Alterar dados e meta do mês.
+    /// [5/14] PUT /api/imoveis/{id} — Alterar dados e meta do mês (só o dono ou ADMIN).
     /// </summary>
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(Imovel), StatusCodes.Status200OK)]
@@ -173,6 +234,9 @@ public class ImoveisController : ControllerBase
         var existente = await _repo.GetByIdAsync(id);
         if (existente is null)
             return NotFound(new { erro = $"Imóvel com ID {id} não encontrado." });
+
+        if (!PodeAcessarImovel(existente))
+            return Forbid();
 
         existente.ApelidoLocal = dto.ApelidoLocal.Trim();
         existente.Endereco = dto.Endereco.Trim();
@@ -189,8 +253,6 @@ public class ImoveisController : ControllerBase
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "ADMIN")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(int id)
     {
@@ -204,45 +266,92 @@ public class ImoveisController : ControllerBase
 
 /// <summary>
 /// Endpoints de Sensores IoT, Leituras de Telemetria, Alertas e Painel do Gestor (Página 14 do Guia).
+/// Protegidos pela Regra do Dono. Única rota pública: POST /api/leituras (o simulador/dispositivo não tem login).
 /// </summary>
 [ApiController]
 [Route("api")]
-public class TelemetriaAlertasController : ControllerBase
+[Authorize]
+[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+[ProducesResponseType(StatusCodes.Status403Forbidden)]
+public class TelemetriaAlertasController : ApiControllerBase
 {
     private readonly ISensorRepository _sensorRepo;
     private readonly ILeituraAlertaRepository _leituraAlertaRepo;
     private readonly ITelemetriaService _telemetriaService;
+    private readonly IImovelRepository _imovelRepo;
 
     public TelemetriaAlertasController(
         ISensorRepository sensorRepo,
         ILeituraAlertaRepository leituraAlertaRepo,
-        ITelemetriaService telemetriaService)
+        ITelemetriaService telemetriaService,
+        IImovelRepository imovelRepo)
     {
         _sensorRepo = sensorRepo;
         _leituraAlertaRepo = leituraAlertaRepo;
         _telemetriaService = telemetriaService;
+        _imovelRepo = imovelRepo;
     }
 
     /// <summary>
-    /// Lista os sensores ópticos (LED_IR e FOTOTRANSISTOR) instalados nos hidrômetros.
+    /// Confere se o imóvel existe e se o usuário logado pode acessá-lo.
+    /// Devolve null quando está tudo certo; senão devolve o 404 ou 403 a ser retornado.
+    /// </summary>
+    private async Task<IActionResult?> ValidarAcessoAoImovelAsync(int imovelId)
+    {
+        var imovel = await _imovelRepo.GetByIdAsync(imovelId);
+        if (imovel is null)
+            return NotFound(new { erro = $"Imóvel com ID {imovelId} não encontrado." });
+
+        return PodeAcessarImovel(imovel) ? null : Forbid();
+    }
+
+    /// <summary>IDs dos imóveis do usuário logado (usado para filtrar listas de sensores e alertas).</summary>
+    private async Task<List<int>> IdsDosMeusImoveisAsync(int usuarioId)
+    {
+        var meus = await _imovelRepo.GetAllAsync(null, usuarioId);
+        return meus.Select(i => i.Id).ToList();
+    }
+
+    /// <summary>
+    /// Lista os sensores ópticos (LED_IR e FOTOTRANSISTOR). MORADOR vê só os sensores dos seus imóveis.
     /// </summary>
     [HttpGet("sensores")]
     [ProducesResponseType(typeof(List<SensorIoT>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetSensores([FromQuery] int? imovelId = null)
     {
-        return Ok(await _sensorRepo.GetAllAsync(imovelId));
+        if (EhAdmin())
+            return Ok(await _sensorRepo.GetAllAsync(imovelId));
+
+        var uid = UsuarioLogadoId();
+        if (uid is null)
+            return Unauthorized();
+
+        if (imovelId.HasValue)
+        {
+            var erro = await ValidarAcessoAoImovelAsync(imovelId.Value);
+            if (erro is not null) return erro;
+            return Ok(await _sensorRepo.GetAllAsync(imovelId));
+        }
+
+        var meusImoveis = await IdsDosMeusImoveisAsync(uid.Value);
+        var sensores = await _sensorRepo.GetAllAsync(null);
+        return Ok(sensores.Where(s => meusImoveis.Contains(s.ImovelId)).ToList());
     }
 
     /// <summary>
-    /// [7/14] POST /api/sensores — Registrar sensor no imóvel.
+    /// [7/14] POST /api/sensores — Registrar sensor no imóvel (só no imóvel do próprio usuário, ou ADMIN).
     /// </summary>
     [HttpPost("sensores")]
     [ProducesResponseType(typeof(SensorIoT), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> CreateSensor([FromBody] CreateSensorDto dto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        var erro = await ValidarAcessoAoImovelAsync(dto.ImovelId);
+        if (erro is not null) return erro;
 
         var sensor = new SensorIoT
         {
@@ -259,13 +368,21 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// [8/14] DELETE /api/sensores/{id} — Remover sensor.
+    /// [8/14] DELETE /api/sensores/{id} — Remover sensor (só se o imóvel do sensor for do usuário, ou ADMIN).
     /// </summary>
     [HttpDelete("sensores/{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteSensor(int id)
     {
+        var todos = await _sensorRepo.GetAllAsync(null);
+        var sensor = todos.FirstOrDefault(s => s.Id == id);
+        if (sensor is null)
+            return NotFound(new { erro = $"Sensor com ID {id} não encontrado." });
+
+        var erro = await ValidarAcessoAoImovelAsync(sensor.ImovelId);
+        if (erro is not null) return erro;
+
         var removido = await _sensorRepo.DeleteAsync(id);
         if (!removido)
             return NotFound(new { erro = $"Sensor com ID {id} não encontrado." });
@@ -274,19 +391,33 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// Consulta as leituras recentes enviadas pelos sensores de telemetria.
+    /// Consulta as leituras recentes enviadas pelos sensores. MORADOR precisa informar um imovelId que seja dele.
     /// </summary>
     [HttpGet("leituras")]
     [ProducesResponseType(typeof(List<LeituraHidrometro>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetLeituras([FromQuery] int? imovelId = null, [FromQuery] int limit = 30)
     {
+        if (!EhAdmin())
+        {
+            if (imovelId is null)
+                return BadRequest(new { erro = "Informe o imovelId para consultar as leituras." });
+
+            var erro = await ValidarAcessoAoImovelAsync(imovelId.Value);
+            if (erro is not null) return erro;
+        }
+
+        limit = Math.Clamp(limit, 1, 200);
         return Ok(await _leituraAlertaRepo.GetRecentLeiturasAsync(imovelId, limit));
     }
 
     /// <summary>
     /// [9/14] POST /api/leituras — Receber leitura do Simulador do Luiz e rodar os 3 gatilhos (Vazamento Oculto, Cano Rompido e Meta Mensal).
+    /// Rota PÚBLICA de propósito: o dispositivo IoT não faz login.
+    /// Diferencial (Página 10): validar o header X-Device-Signature (HMAC) aqui para aceitar só leituras assinadas.
     /// </summary>
     [HttpPost("leituras")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(LeituraProcessedResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -307,17 +438,33 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// [12/14] GET /api/alertas — Alertas de vazamento e meta estourada.
+    /// [12/14] GET /api/alertas — Alertas de vazamento e meta estourada. MORADOR vê só os alertas dos seus imóveis.
     /// </summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(List<AlertaConsumo>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAlertas([FromQuery] bool? apenasAtivos = null, [FromQuery] int? imovelId = null)
     {
-        return Ok(await _leituraAlertaRepo.GetAlertasAsync(apenasAtivos, imovelId));
+        if (EhAdmin())
+            return Ok(await _leituraAlertaRepo.GetAlertasAsync(apenasAtivos, imovelId));
+
+        var uid = UsuarioLogadoId();
+        if (uid is null)
+            return Unauthorized();
+
+        if (imovelId.HasValue)
+        {
+            var erro = await ValidarAcessoAoImovelAsync(imovelId.Value);
+            if (erro is not null) return erro;
+            return Ok(await _leituraAlertaRepo.GetAlertasAsync(apenasAtivos, imovelId));
+        }
+
+        var meusImoveis = await IdsDosMeusImoveisAsync(uid.Value);
+        var alertas = await _leituraAlertaRepo.GetAlertasAsync(apenasAtivos, null);
+        return Ok(alertas.Where(a => meusImoveis.Contains(a.ImovelId)).ToList());
     }
 
     /// <summary>
-    /// [13/14] PUT /api/alertas/{id} — Confirmar reparo (marca resolvido = true).
+    /// [13/14] PUT /api/alertas/{id} — Confirmar reparo (marca resolvido = true). Só o dono do imóvel do alerta, ou ADMIN.
     /// </summary>
     [HttpPut("alertas/{id:int}")]
     [HttpPut("alertas/{id:int}/resolver")]
@@ -329,15 +476,19 @@ public class TelemetriaAlertasController : ControllerBase
         if (alerta is null)
             return NotFound(new { erro = $"Alerta com ID {id} não encontrado." });
 
+        var erro = await ValidarAcessoAoImovelAsync(alerta.ImovelId);
+        if (erro is not null) return erro;
+
         alerta.Resolvido = true;
         var atualizado = await _leituraAlertaRepo.UpdateAlertaAsync(alerta);
         return Ok(atualizado);
     }
 
     /// <summary>
-    /// Exclui um registro de alerta.
+    /// Exclui um registro de alerta (apenas ADMIN: o histórico de alertas serve de auditoria).
     /// </summary>
     [HttpDelete("alertas/{id:int}")]
+    [Authorize(Roles = "ADMIN")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DeleteAlerta(int id)
@@ -350,9 +501,10 @@ public class TelemetriaAlertasController : ControllerBase
     }
 
     /// <summary>
-    /// [14/14] GET /api/bairros/alertas — Alertas e consumo consolidado por bairro (Painel do Gestor).
+    /// [14/14] GET /api/bairros/alertas — Alertas e consumo consolidado por bairro (Painel do Gestor — apenas ADMIN).
     /// </summary>
     [HttpGet("bairros/alertas")]
+    [Authorize(Roles = "ADMIN")]
     [ProducesResponseType(typeof(List<BairroAlertaResumoDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAlertasPorBairro()
     {
