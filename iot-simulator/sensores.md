@@ -1,7 +1,7 @@
 # Os sensores da Gota Certa
-**Parte 6 · Simulação de IoT · Responsável: Luiz**
+**Simulação de IoT**
 
-Este texto responde ao critério de explicação da Parte 6: **qual sensor, o que mede e como influencia o sistema**. Ele serve de base para a seção da Parte 6 no PDF da entrega.
+Este texto responde ao critério de explicação da Parte 6: **qual sensor, o que mede e como influencia o sistema**. 
 
 ---
 
@@ -122,6 +122,32 @@ A cada leitura, a API avalia três gatilhos com os dados do Sensor 1, e o Node-R
 - **Luz do sol pode atrapalhar.** A carcaça precisa bloquear a luz externa; no Wokwi, o slider do LDR controla quanta luz de fora entra como ruído.
 - **O vidro envelhece e embaça,** o que reduz o contraste entre fundo e ponteiro. Os limiares precisariam ser recalibrados de tempos em tempos.
 - **O Sensor 2 só percebe luz.** Quem abrir a tampa no escuro, à noite, não é detectado. Um interruptor magnético na tampa (reed switch) resolveria isso no produto real.
+
+---
+
+## 8. Robustez da simulação
+
+- **Wi-Fi ou HiveMQ caiu:** o ESP32 guarda até 10 leituras numa fila. Ele tenta reconectar a cada 3 s e publica todas, em ordem, quando a conexão volta.
+- **Wokwi mais lento que o tempo real:** o ESP32 avisa o HiveMQ que pode ficar até 60 s sem dar sinal (`setKeepAlive(60)`), para a conexão não cair à toa.
+- **API fora do ar:** o Node-RED guarda a leitura numa fila e reenvia a cada 15 s.
+- **Leitura rejeitada (400 ou 404):** não é reenviada, porque o problema está no dado.
+- **Mensagem que não é da Gota Certa no tópico:** é ignorada pela validação.
+- **Segurança:** o HiveMQ público é aberto, e qualquer pessoa que souber o tópico (`fiap/3esoa/gotacerta/leituras`) pode ler ou publicar nele. Para a demonstração isso basta. Num produto real, seriam necessários um broker com usuário e senha por dispositivo, conexão com TLS (porta 8883) e a API conferindo se o dispositivo é mesmo quem diz ser.
+
+## 9. Testes realizados
+
+O `sketch.ino` foi compilado no computador com imitações das bibliotecas do Arduino. O fluxo rodou num Node-RED 4 de verdade, com um broker MQTT local, contra uma réplica das regras do `POST /api/leituras` carregada com o `database/01_schema_seed.sql`.
+
+| Teste | Resultado |
+|---|---|
+| Água parada, 1 minuto real (12 leituras) | 0 pulsos, LED piscou 10 vezes por leitura, nenhum alerta |
+| Descarga pingando (casa 1) | 3 ou 4 pulsos por leitura (0,30 a 0,40 L/min); mostrador de 1.234.582 para 1.234.622 L em 2 h simuladas; 12 alertas de vazamento |
+| Registro todo aberto (casa 1) | 600 pulsos e 60 L/min por leitura; 6 alertas de cano rompido em 30 s |
+| Registro todo aberto (casa 4) | Alerta de meta na 9ª leitura, uns 45 s (319.600 L; consumo do mês acima de 9.000 L) |
+| HiveMQ fora do ar por 15 s | Leituras na fila, enviadas em ordem ao reconectar |
+| API desligada | 5 leituras guardadas pelo Node-RED e reenviadas quando a API subiu |
+| Dispositivo `GC-999` | 404, aviso no Node-RED, não reenviado |
+| Sensor 2: LDR a 2.209 lux por 10 s e depois de volta | 1 alerta `TAMPA_VIOLADA` (sem repetir); contagem de água continuou certa; a API recebeu só os campos dela |
 
 ---
 
