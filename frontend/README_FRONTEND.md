@@ -146,15 +146,3 @@ src/
 │  └─ sessao.ts               # leitura/gravação da sessão no localStorage
 └─ components/                # Mostrador (rolos + ponteiro de litros), Navegacao (inferior e lateral), cartões, campos, estados
 ```
-
----
-
-## 6. Observações para o time
-
-- **Data dos alertas (Antônio):** a API grava `dataGeracao` com `DateTime.UtcNow`, mas devolve sem o `Z`
-  (ex.: `2026-11-13T02:02:53`). O frontend trata esse valor como UTC (`dataUtc` em `src/lib/formato.ts`). Se a API
-  passar a mandar o `Z`, continua funcionando. Leituras enviadas sem `dataHora` também caem em UTC e podem aparecer
-  no dia seguinte no histórico depois das 21h.
-- **Regra do dono (Vitória):** enquanto a API não filtra por dono, o frontend pede `GET /api/imoveis?usuarioId=` e
-  filtra os alertas pelos imóveis do morador. Quando a regra do dono entrar na API, nada precisa mudar aqui: o token
-  já vai em todas as chamadas, e um 403 vira a mensagem "Seu perfil não tem permissão para esta ação".

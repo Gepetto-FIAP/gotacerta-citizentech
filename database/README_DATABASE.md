@@ -81,6 +81,6 @@ erDiagram
 ## 3. Como Executar os Scripts SQL (0,5 pt + 1,0 pt)
 
 ```bash
-sqlite3 /tmp/gotacerta_test.db < database/01_schema_seed.sql
-sqlite3 -header -column /tmp/gotacerta_test.db < database/02_consultas_uso.sql
+sqlite3 gotacerta_test.db < database/01_schema_seed.sql
+sqlite3 -header -column gotacerta_test.db < database/02_consultas_uso.sql
 ```

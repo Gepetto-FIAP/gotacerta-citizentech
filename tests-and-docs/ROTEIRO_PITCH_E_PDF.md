@@ -1,35 +1,34 @@
-# Guia do Vídeo Pitch (5,0 Pontos) e Estrutura do PDF Único
-**Projeto GotaCerta — CitizenTech (3ESOA)**
-*Responsável pela coordenação: João (junto com todo o grupo)*
+# Roteiro do vídeo pitch e estrutura do PDF
+**Gota Certa · FIAP Global Solution 2026/2 · Responsável: João (com todo o grupo)**
 
----
+## 1. Roteiro do vídeo (até 3 minutos)
 
-## 1. Roteiro Cronometrado do Vídeo Pitch (Máximo: 2min50s)
+Regras do case:
+- Até 3 minutos. O que passar disso não é avaliado, então mire em 2:50.
+- Mostre o sistema funcionando. Vídeo só com slides ou lendo texto da tela não vale.
+- O link precisa ser público: YouTube (não listado), Google Drive ou Vimeo com acesso aberto. Teste numa aba anônima antes de enviar.
 
-> [!IMPORTANT]
-> **Regras de Ouro do Edital (Página 27):**
-> * **Até 3 minutos** (o que passar de 3:00 não é avaliado — mire em **2:45 a 2:50**).
-> * **Mostre o protótipo funcionando** (nada de vídeo só lendo slides!).
-> * **Link público** no YouTube (Não listado ou Público), Google Drive (Acesso aberto a qualquer pessoa com o link) ou Vimeo. **Testem em aba anônima antes de enviar!**
+| Tempo | Bloco | Na tela · quem | Fala sugerida |
+|:---:|---|---|---|
+| 0:00–0:30 | **Problema e cidadão** (1 pt) | Luiz, que trabalha no setor; um hidrômetro real; o dado de 39,53% | "Quem trabalha numa companhia de saneamento ouve todo dia: minha conta veio absurda. Quase sempre é uma descarga vazando há um mês. O hidrômetro da casa é mecânico e só mostra isso na conta. No Brasil, quase 40% da água tratada se perde antes de chegar à torneira." |
+| 0:30–0:50 | **Solução** | Desenho do LED infravermelho e do fototransistor sobre o ponteiro de litros | "A Gota Certa não troca o hidrômetro: ensina ele a falar. Um LED infravermelho ilumina o ponteiro de litros e um fototransistor conta cada volta, por cima do vidro, sem romper o lacre. Cada volta é um litro." |
+| 0:50–2:10 | **Demonstração** (2 pts) | Luiz no Wokwi e no Node-RED · Antônio no Swagger · Danilo no app · Vitória num acesso negado | "No Wokwi, o ESP32 conta os pulsos do ponteiro. Aperto a descarga: às 3 da manhã, a água começa a passar. A leitura vai por MQTT, o Node-RED entrega na API, e a API testa os gatilhos e cria o alerta. No celular da Dona Maria, o aviso de vazamento chega sozinho, e ela confirma o reparo. O gestor vê os alertas de todo o bairro. E sem login, ou no imóvel de outra pessoa, a API nega o acesso." |
+| 2:10–2:40 | **Impacto e diferencial** (1 pt) | Integrante falando; ODS 6, 9, 11 e 13; uma frase da conversa com um morador | "O morador economiza e acompanha o gasto em reais, e a companhia reduz perdas. As grandes companhias gastam bilhões trocando hidrômetros. A Gota Certa leva o mesmo benefício para quem ficou de fora, aproveitando o hidrômetro que já existe." |
+| 2:40–3:00 | **Fechamento** | Nome do projeto e dos 5 integrantes | "Hoje o vazamento só aparece na conta. Com a Gota Certa, ele aparece no celular, no mesmo dia." |
 
-| Tempo | Bloco do Edital (Pág. 28) | O que mostrar na tela | O que falar (Script enxuto) |
-| :---: | :--- | :--- | :--- |
-| **0:00 – 0:30** | **1. O Problema e o Cidadão (1 pt)** | Imagem rápida de um hidrômetro residencial comum + conta de água alta / caixa d'água vazia. | *"No Brasil, quase 40% da água tratada se perde em vazamentos, e milhões de famílias, escolas públicas e pequenos comércios sofrem com contas impagáveis por vazamentos invisíveis ou cortes repentinos de abastecimento. O problema? Mais de 95% dos hidrômetros são analógicos e lacrados pela concessionária: o cidadão só descobre um vazamento 30 dias depois, quando a conta chega."* |
-| **0:30 – 0:50** | **2. A Solução CitizenTech** | Diagrama simples do **GotaCerta** (Sensor na relojoaria do hidrômetro + Sensor na caixa d'água → API → App Mobile). | *"Para colocar a tecnologia a serviço do cidadão, criamos o **GotaCerta**: uma plataforma CitizenTech inspirada em pesquisa de telemetria da UNICAMP que acopla um sensor magnético não-invasivo de baixo custo por fora do visor do hidrômetro existente, combinado a um sensor ultrassônico na caixa d'água."* |
-| **0:50 – 2:10** | **3. Demonstração ao Vivo (2 pts)** | **Tela dividida:**<br>1) App Mobile-First (Next.js) + Swagger da API C#<br>2) Terminal rodando `python3 iot-simulator/simulator.py --mode demo` | *"Veja a solução funcionando na prática: aqui no nosso App Mobile-First consumindo nossa API em C# ASP.NET Core com banco SQLite/MySQL em Docker, acompanhamos a Residência da Dona Maria e a Escola Pública do bairro. Agora, nosso simulador IoT envia os pulsos da relojoaria simulando um vazamento oculto de madrugada e um cano rompido na escola. Em tempo real, a API responde `201 Created`, processa a regra e dispara o alerta crítico no celular do cidadão, que pode confirmar o reparo com um toque!"* |
-| **2:10 – 2:40** | **4. Impacto e ODS (1 pt)** | Card com ODS 11, ODS 9 e ODS 13 + relato curto da validação com morador real. | *"O GotaCerta atende diretamente aos **ODS 11, 9 e 13 da ONU**. Conversamos com moradores reais para validar a interface e incluímos o alerta comunitário de pressão zero na rua, avisando todo o bairro quando falta água na rede pública."* |
-| **2:40 – 2:55** | **5. Fechamento (1 pt)** | Tela final com logo do GotaCerta e nomes dos 5 integrantes. | *"Simples de instalar sem cortar um único cano, seguro com autenticação JWT e hash criptográfico, e acessível para quem mais precisa. GotaCerta: cada gota conta quando o cidadão está no centro da inovação."* |
+**Clareza e tempo (1 pt):** cronometrem e ensaiem as falas em voz alta, sem ler. Cada um grava a tela da própria parte, e o João junta na edição. Áudio limpo vale mais que imagem perfeita.
 
----
+Não digam "ninguém nunca fez isso": a banca pode conhecer soluções parecidas (Sabesp, Canal de Isabel II, Honeywell). Digam que a Gota Certa leva o benefício a quem ficou de fora.
 
-## 2. Estrutura Obrigatória do PDF Único da Entrega
+## 2. Estrutura do PDF da entrega
 
-No arquivo `.zip` final, além do código, do `README.md` e do `integrantes.txt`, vocês devem incluir um arquivo **`Entrega_GotaCerta_3ESOA.pdf`** contendo:
-1. **Capa & Integrantes:** Nome do grupo, RM e nome completo dos 5 integrantes + Link público do Pitch + Link do GitHub (`Gepetto-FIAP`).
-2. **Proposta CitizenTech & ODS:** As 6 respostas da página 7 do edital + conexão com os ODS 11, 9 e 13 + resumo da validação com usuário real.
-3. **Parte 1 — Banco de Dados (Antônio):** Imagem do Diagrama ER (`database/README_DATABASE.md`) + prints das 5 consultas SQL rodando.
-4. **Parte 2 — API RESTful (Antônio):** Print da arquitetura em camadas (`Controllers`, `Services`, `Repositories`) e print do Swagger mostrando os endpoints.
-5. **Parte 3 — Plano de Testes (João):** A tabela dos 10 casos de teste (`tests-and-docs/PLANO_DE_TESTES.md`) + prints/logs do `test_api.py` executado.
-6. **Parte 4 — Frontend Mobile-First (Danilo):** Prints das 5 telas funcionando integradas à API.
-7. **Parte 5 — Segurança (Vitória):** Explicação + prints do código de Hash PBKDF2-SHA256, JWT RBAC (`ADMIN` vs `MORADOR`) e as práticas contra SQLi/XSS.
-8. **Parte 6 — Simulação de IoT (Luiz):** Explicação dos 2 sensores (citando o artigo PIBIC/UNICAMP de Perissinotto & Manera) + prints do simulador disparando alertas na API.
+O PDF vai no `.zip` junto com o código, o `README.md` e o `integrantes.txt`. Cada integrante escreve a sua seção, e o João junta.
+
+1. **Capa e integrantes:** nome do grupo, RM e nome completo dos 5 integrantes, link público do pitch e link do GitHub.
+2. **Proposta e ODS:** cidadão beneficiado, problema (com fonte dos números), solução, ODS 6, 9, 11 e 13 e o resumo das conversas com moradores.
+3. **Parte 1 · Banco (Antônio):** diagrama ER ([`database/README_DATABASE.md`](../database/README_DATABASE.md)), explicação de cada uma das 5 consultas e print do resultado.
+4. **Parte 2 · API (Antônio):** camadas Controller, Service e Repository e print do Swagger com os endpoints.
+5. **Parte 3 · Testes (João):** tabela dos 10 casos ([`PLANO_DE_TESTES.md`](./PLANO_DE_TESTES.md)) e o relatório do `test_api.py` executado.
+6. **Parte 4 · Frontend (Danilo):** prints de cada tela, dos estados de carregando e de erro e da versão de celular.
+7. **Parte 5 · Segurança (Vitória):** hash BCrypt, JWT com perfis `MORADOR` e `ADMIN`, regra do dono e a tabela de práticas OWASP com os prints dos testes ([`backend/seguranca.md`](../backend/seguranca.md)).
+8. **Parte 6 · IoT (Luiz):** os 2 sensores, o que medem e como influenciam o sistema, citando o artigo da Unicamp (Perissinotto & Manera, 2019), mais prints do Wokwi, do Node-RED e do alerta no app ([`iot-simulator/sensores.md`](../iot-simulator/sensores.md)).

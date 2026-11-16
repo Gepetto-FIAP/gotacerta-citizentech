@@ -69,12 +69,12 @@ def run_suite():
     )
     casos.append(("CT-03", "Validação de entrada inválida no cadastro (Erro 400)", 400, status, status == 400))
 
-    # CT-04: Dashboard do imóvel (GET /api/imoveis/1/dashboard)
-    status, body = request_api("GET", "/api/imoveis/1/dashboard")
+    # CT-04: Dashboard do imóvel da própria moradora (GET /api/imoveis/1/dashboard)
+    status, body = request_api("GET", "/api/imoveis/1/dashboard", token=token_morador)
     casos.append(("CT-04", "Dashboard do imóvel: litros, reais estimados e meta (GET)", 200, status, status == 200 and "valorEstimadoReais" in body))
 
     # CT-05: Imóvel inexistente (Erro 404)
-    status, _ = request_api("GET", "/api/imoveis/99999")
+    status, _ = request_api("GET", "/api/imoveis/99999", token=token_morador)
     casos.append(("CT-05", "Consulta de imóvel inexistente (Erro 404)", 404, status, status == 404))
 
     # CT-06: Atualizar meta mensal (PUT /api/imoveis/1)
@@ -87,6 +87,7 @@ def run_suite():
             "bairro": "Jardim Pantanal",
             "metaConsumoMensalLitros": 10000,
         },
+        token=token_morador,
     )
     casos.append(("CT-06", "Atualização de meta mensal do imóvel (PUT)", 200, status, status == 200))
 
@@ -120,9 +121,11 @@ def run_suite():
         )
     )
 
-    # CT-10: Confirmar reparo de alerta (PUT /api/alertas/1)
-    status, body = request_api("PUT", "/api/alertas/1")
-    casos.append(("CT-10", "Confirmar reparo de vazamento (PUT /api/alertas/1)", 200, status, status == 200 and body.get("resolvido") is True))
+    # CT-10: Confirmar reparo do alerta ativo mais recente da moradora (PUT /api/alertas/{id})
+    _, ativos = request_api("GET", "/api/alertas?apenasAtivos=true", token=token_morador)
+    alerta_id = max((a["id"] for a in ativos), default=0) if isinstance(ativos, list) else 0
+    status, body = request_api("PUT", f"/api/alertas/{alerta_id}", token=token_morador)
+    casos.append(("CT-10", f"Confirmar reparo de vazamento (PUT /api/alertas/{alerta_id})", 200, status, status == 200 and body.get("resolvido") is True))
 
     aprovados = 0
     for cid, desc, esp, obt, ok in casos:
