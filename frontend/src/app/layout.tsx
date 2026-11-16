@@ -1,21 +1,35 @@
-import React from "react";
+import type { Metadata, Viewport } from "next";
+import { Archivo } from "next/font/google";
+import "./globals.css";
+import { AuthProvider } from "@/context/AuthContext";
+import { ToastProvider } from "@/context/ToastContext";
 
-export const metadata = {
-  title: "GotaCerta — Telemetria Cidadã de Hidrômetros",
-  description: "Monitoramento ágil de consumo de água, detecção de vazamentos ocultos e alerta comunitário.",
+// Archivo é variável em peso e largura: a largura expandida (125%) é usada nos números do mostrador.
+const archivo = Archivo({
+  subsets: ["latin"],
+  axes: ["wdth"],
+  display: "swap",
+  variable: "--font-archivo",
+});
+
+export const metadata: Metadata = {
+  title: "Gota Certa",
+  description: "Consumo de água em litros e reais, meta do mês e alerta de vazamento, no celular ou no computador.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#0e3b4a",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-        <script src="https://cdn.tailwindcss.com"></script>
-      </head>
-      <body className="bg-slate-950 text-slate-100 min-h-screen flex justify-center">
-        <div className="w-full max-w-md min-h-screen bg-slate-900 border-x border-slate-800 flex flex-col shadow-2xl">
-          {children}
-        </div>
+    <html lang="pt-BR" className={archivo.variable}>
+      <body>
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

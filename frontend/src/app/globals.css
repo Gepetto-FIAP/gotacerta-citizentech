@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/*
+ * Identidade visual do Gota Certa: cores tiradas do próprio hidrômetro.
+ * tinta = mostrador azul-petróleo · ponteiro = vermelho dos litros · latão = corpo do medidor.
+ */
+@theme {
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+  --color-tinta: #0e3b4a;
+  --color-tinta-claro: #2b5a69;
+  --color-agua: #1f7a8c;
+  --color-agua-escuro: #17606e;
+  --color-agua-claro: #e3f1f3;
+  --color-papel: #f4f7f6;
+  --color-linha: #d5dfdf;
+  --color-texto: #1b2a30;
+  --color-suave: #51656b;
+  --color-ponteiro: #c8102e;
+  --color-ponteiro-claro: #fbe9ec;
+  --color-latao: #9a6f1e;
+  --color-latao-claro: #f7efdc;
+  --color-latao-escuro: #765514;
+  --color-musgo: #2e7d5b;
+  --color-musgo-claro: #e4f2eb;
+  --color-musgo-escuro: #22624a;
+
+  --animate-girar: girar var(--periodo, 4s) linear infinite;
+
+  @keyframes girar {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-papel text-texto antialiased;
+}
+
+/* Números de instrumento: Archivo em largura expandida. */
+.numero {
+  font-stretch: 125%;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Peças repetidas em várias telas. Ficam aqui para as telas lerem melhor. */
+@layer components {
+  .btn-primario {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-agua px-4 text-sm font-semibold text-white transition-colors hover:bg-agua-escuro focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-agua disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-secundario {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-linha bg-white px-4 text-sm font-semibold text-tinta transition-colors hover:border-agua hover:bg-agua-claro focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-agua disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .btn-perigo {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-ponteiro/30 bg-white px-4 text-sm font-semibold text-ponteiro transition-colors hover:bg-ponteiro-claro focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ponteiro disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  /* text-base (16 px) evita o zoom automático do iPhone ao tocar no campo. */
+  .campo {
+    @apply mt-1 block min-h-12 w-full rounded-lg border border-linha bg-white px-3 text-base text-texto placeholder:text-suave focus:border-agua focus:ring-2 focus:ring-agua/25 focus:outline-none aria-[invalid=true]:border-ponteiro;
+  }
+
+  /* Superfície padrão: borda fina, sem sombra. O destaque visual fica só para o mostrador. */
+  .cartao {
+    @apply rounded-xl border border-linha bg-white p-4 md:p-5;
+  }
+}

@@ -88,6 +88,7 @@ dotnet run --urls "http://localhost:8080"
 Em outro terminal:
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 * **App Mobile-First:** [http://localhost:3000](http://localhost:3000)
