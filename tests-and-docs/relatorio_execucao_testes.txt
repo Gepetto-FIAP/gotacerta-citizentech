@@ -1,0 +1,18 @@
+==============================================================================
+RELATÓRIO DE EXECUÇÃO DE TESTES AUTOMATIZADOS - GOTA CERTA API
+Data/Hora UTC: 2026-11-17T03:09:23.249599+00:00
+Target URL:    http://localhost:8080
+==============================================================================
+[PASS] CT-01 | Login válido com senha verificada em BCrypt (MORADOR) | Esperado: 200 | Obtido: 200
+[PASS] CT-02 | Bloqueio de login com senha incorreta (Erro 401) | Esperado: 401 | Obtido: 401
+[PASS] CT-03 | Validação de entrada inválida no cadastro (Erro 400) | Esperado: 400 | Obtido: 400
+[PASS] CT-04 | Dashboard do imóvel: litros, reais estimados e meta (GET) | Esperado: 200 | Obtido: 200
+[PASS] CT-05 | Consulta de imóvel inexistente (Erro 404) | Esperado: 404 | Obtido: 404
+[PASS] CT-06 | Atualização de meta mensal do imóvel (PUT) | Esperado: 200 | Obtido: 200
+[PASS] CT-07 | Rota protegida sem token JWT retorna 401 (Erro 401) | Esperado: 401 | Obtido: 401
+[PASS] CT-08 | Bloqueio RBAC: MORADOR tentando DELETE de ADMIN (Erro 403) | Esperado: 403 | Obtido: 403
+[PASS] CT-09 | Telemetria óptica na madrugada disparando alerta automático (POST) | Esperado: 201 | Obtido: 201
+[PASS] CT-10 | Confirmar reparo de vazamento (PUT /api/alertas/5) | Esperado: 200 | Obtido: 200
+------------------------------------------------------------------------------
+TOTAL EXECUTADO: 10 casos | APROVADOS: 10/10
+==============================================================================
