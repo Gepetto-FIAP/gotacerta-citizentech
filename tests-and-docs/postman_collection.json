@@ -2,7 +2,7 @@
   "info": {
     "name": "GotaCerta API - CitizenTech (FIAP Global Solution 2026/2 - 3ESOA)",
     "_postman_id": "29f57465-9967-477e-b79e-ca4c600c9781",
-    "description": "Coleção completa de endpoints da API RESTful GotaCerta cobrindo GET, POST, PUT, DELETE, Autenticação JWT e Telemetria IoT.",
+    "description": "Coleção completa dos 14 endpoints da API RESTful GotaCerta cobrindo Autenticação JWT, Imóveis, Dashboard, Histórico, Sensores, Telemetria IoT, Alertas e Painel por Bairro.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -17,7 +17,51 @@
   ],
   "item": [
     {
-      "name": "1. Auth - Login (POST)",
+      "name": "1. Auth - Login Moradora (POST)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.tokenJwt) {",
+              "        pm.collectionVariables.set('jwtToken', jsonData.tokenJwt);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"maria.silva@email.com\",\n  \"senha\": \"GotaCerta@2026\"\n}"
+        }
+      }
+    },
+    {
+      "name": "1b. Auth - Login Gestor ADMIN (POST)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.tokenJwt) {",
+              "        pm.collectionVariables.set('jwtToken', jsonData.tokenJwt);",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
@@ -36,92 +80,122 @@
         "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"nome\": \"Morador Teste QA\",\n  \"email\": \"morador.qa@gotacerta.org.br\",\n  \"senha\": \"GotaCerta@2026\",\n  \"perfil\": \"MORADOR\",\n  \"telefone\": \"11988887777\"\n}"
+          "raw": "{\n  \"nome\": \"Morador Teste QA\",\n  \"email\": \"morador.qa@gotacerta.org.br\",\n  \"senha\": \"GotaCerta@2026\",\n  \"perfil\": \"MORADOR\"\n}"
         }
       }
     },
     {
-      "name": "3. Dashboard - Resumo Geral (GET)",
+      "name": "3. Imóveis - Listar Meus Imóveis (GET)",
       "request": {
         "method": "GET",
-        "header": [],
-        "url": { "raw": "{{baseUrl}}/api/dashboard/resumo", "host": ["{{baseUrl}}"], "path": ["api", "dashboard", "resumo"] }
-      }
-    },
-    {
-      "name": "4. Imóveis - Listar Todos (GET)",
-      "request": {
-        "method": "GET",
-        "header": [],
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
         "url": { "raw": "{{baseUrl}}/api/imoveis", "host": ["{{baseUrl}}"], "path": ["api", "imoveis"] }
       }
     },
     {
-      "name": "5. Imóveis - Buscar por ID (GET)",
+      "name": "4. Imóveis - Buscar por ID (GET)",
       "request": {
         "method": "GET",
-        "header": [],
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
         "url": { "raw": "{{baseUrl}}/api/imoveis/1", "host": ["{{baseUrl}}"], "path": ["api", "imoveis", "1"] }
       }
     },
     {
-      "name": "6. Imóveis - Cadastrar Novo Hidrômetro (POST)",
+      "name": "5. Imóveis - Dashboard do Imóvel (GET)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/imoveis/1/dashboard", "host": ["{{baseUrl}}"], "path": ["api", "imoveis", "1", "dashboard"] }
+      }
+    },
+    {
+      "name": "6. Imóveis - Histórico Diário (GET)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/imoveis/1/historico", "host": ["{{baseUrl}}"], "path": ["api", "imoveis", "1", "historico"] }
+      }
+    },
+    {
+      "name": "7. Imóveis - Cadastrar Novo Imóvel/Hidrômetro (POST)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
+        ],
         "url": { "raw": "{{baseUrl}}/api/imoveis", "host": ["{{baseUrl}}"], "path": ["api", "imoveis"] },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"usuarioId\": 2,\n  \"apelidoLocal\": \"Creche Comunitária Esperança\",\n  \"tipoImovel\": \"ESCOLA_PUBLICA\",\n  \"endereco\": \"Rua das Flores, 300\",\n  \"bairro\": \"Jardim Pantanal\",\n  \"cep\": \"08090-120\",\n  \"numeroSerieHidrometro\": \"HIDRO-UNICAMP-2026-500\",\n  \"metaConsumoMensalLitros\": 40000,\n  \"capacidadeCaixaLitros\": 5000,\n  \"moradoresAtendidos\": 120\n}"
+          "raw": "{\n  \"usuarioId\": 2,\n  \"apelidoLocal\": \"Casa da Vó Ana\",\n  \"endereco\": \"Rua das Flores, 300\",\n  \"bairro\": \"Jardim Pantanal\",\n  \"cep\": \"08090-120\",\n  \"numeroSerieHidrometro\": \"LAO-2026-00999\",\n  \"metaConsumoMensalLitros\": 10000\n}"
         }
       }
     },
     {
-      "name": "7. Imóveis - Atualizar Meta e Reservatório (PUT)",
+      "name": "8. Imóveis - Atualizar Dados e Meta Mensal (PUT)",
       "request": {
         "method": "PUT",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{jwtToken}}" }
+        ],
         "url": { "raw": "{{baseUrl}}/api/imoveis/1", "host": ["{{baseUrl}}"], "path": ["api", "imoveis", "1"] },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"apelidoLocal\": \"Residência Dona Maria (Monitorada)\",\n  \"metaConsumoMensalLitros\": 11500,\n  \"capacidadeCaixaLitros\": 1000,\n  \"moradoresAtendidos\": 4\n}"
+          "raw": "{\n  \"apelidoLocal\": \"Residência Dona Maria\",\n  \"endereco\": \"Rua das Acácias, 142\",\n  \"bairro\": \"Jardim Pantanal\",\n  \"metaConsumoMensalLitros\": 10000\n}"
         }
       }
     },
     {
-      "name": "8. Telemetria IoT - Enviar Leitura de Vazamento Relojoaria (POST)",
+      "name": "9. Sensores - Listar Sensores (GET)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/sensores?imovelId=1", "host": ["{{baseUrl}}"], "path": ["api", "sensores"], "query": [{ "key": "imovelId", "value": "1" }] }
+      }
+    },
+    {
+      "name": "10. Telemetria IoT - Enviar Leitura de Vazamento Madrugada (POST)",
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "url": { "raw": "{{baseUrl}}/api/leituras", "host": ["{{baseUrl}}"], "path": ["api", "leituras"] },
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"codigoDispositivo\": \"ESP32-UNICAMP-REED-002\",\n  \"pulsosRegistrados\": 3600,\n  \"vazaoInstantaneaLpm\": 60.0,\n  \"volumeAcumuladoLitros\": 69210.0,\n  \"nivelCaixaPercentual\": 42.0,\n  \"pressaoRuaBar\": 1.8\n}"
+          "raw": "{\n  \"codigoDispositivo\": \"GC-001\",\n  \"dataHora\": \"2026-11-15T03:00:00Z\",\n  \"pulsosUltimoMinuto\": 1,\n  \"leituraAcumuladaLitros\": 1234590,\n  \"intensidadeLuz\": 0.18\n}"
         }
       }
     },
     {
-      "name": "9. Alertas - Listar Alertas Ativos (GET)",
+      "name": "11. Alertas - Listar Alertas Ativos (GET)",
       "request": {
         "method": "GET",
-        "header": [],
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
         "url": { "raw": "{{baseUrl}}/api/alertas?apenasAtivos=true", "host": ["{{baseUrl}}"], "path": ["api", "alertas"], "query": [{ "key": "apenasAtivos", "value": "true" }] }
       }
     },
     {
-      "name": "10. Alertas - Marcar Vazamento como Resolvido (PUT)",
+      "name": "12. Alertas - Confirmar Reparo (PUT)",
       "request": {
         "method": "PUT",
-        "header": [],
-        "url": { "raw": "{{baseUrl}}/api/alertas/1/resolver", "host": ["{{baseUrl}}"], "path": ["api", "alertas", "1", "resolver"] }
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/alertas/1", "host": ["{{baseUrl}}"], "path": ["api", "alertas", "1"] }
       }
     },
     {
-      "name": "11. Alertas - Excluir Alerta (DELETE)",
+      "name": "13. Gestor ADMIN - Alertas Consolidados por Bairro (GET)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/bairros/alertas", "host": ["{{baseUrl}}"], "path": ["api", "bairros", "alertas"] }
+      }
+    },
+    {
+      "name": "14. Gestor ADMIN - Excluir Imóvel (DELETE)",
       "request": {
         "method": "DELETE",
-        "header": [],
-        "url": { "raw": "{{baseUrl}}/api/alertas/1", "host": ["{{baseUrl}}"], "path": ["api", "alertas", "1"] }
+        "header": [{ "key": "Authorization", "value": "Bearer {{jwtToken}}" }],
+        "url": { "raw": "{{baseUrl}}/api/imoveis/999", "host": ["{{baseUrl}}"], "path": ["api", "imoveis", "999"] }
       }
     }
   ]

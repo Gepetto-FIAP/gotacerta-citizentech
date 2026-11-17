@@ -8,8 +8,12 @@ Alinhada às Páginas 14 e 21 do Guia do Grupo (10 casos cobrindo 200, 201, 400,
 import datetime
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 API_BASE = os.environ.get("API_BASE_URL", "http://localhost:8080")
 
@@ -141,7 +145,7 @@ def run_suite():
     out_path = os.path.join(os.path.dirname(__file__), "relatorio_execucao_testes.txt")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(logs) + "\n")
-    print(f"\n📄 Relatório salvo em: {out_path}")
+    print(f"\n[OK] Relatório salvo em: {out_path}")
 
 
 if __name__ == "__main__":
