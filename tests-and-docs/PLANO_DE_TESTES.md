@@ -1,5 +1,5 @@
-# Parte 3 · Plano de testes
-**Gota Certa · FIAP Global Solution 2026/2 · Responsável: João**
+# Plano de Testes da API
+**Gota Certa · FIAP Global Solution 2026/2**
 
 ## 1. Casos de teste
 

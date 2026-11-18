@@ -1,8 +1,7 @@
 -- ============================================================================
 -- FIAP - GLOBAL SOLUTION 2026/2 - CITIZENTECH (3ESOA)
 -- PROJETO: GOTA CERTA - TELEMETRIA ACESSÍVEL PARA HIDRÔMETROS CONVENCIONAIS
--- ARQUIVO: 01_schema_seed.sql (SQLite3 - Modelo Oficial da Página 13 do Guia)
--- RESPONSÁVEL: Antônio Aloísio Schappo Neto (RM556429)
+-- ARQUIVO: 01_schema_seed.sql (SQLite3 / ANSI SQL)
 -- ============================================================================
 
 PRAGMA foreign_keys = ON;
@@ -73,7 +72,7 @@ CREATE TABLE leituras_hidrometro (
 
 -- ----------------------------------------------------------------------------
 -- 5. TABELA: alertas_consumo
--- Os 3 gatilhos da Página 9 do Guia:
+-- Gatilhos automáticos de alerta:
 -- 1) VAZAMENTO_OCULTO_MADRUGADA (MEDIA)
 -- 2) CANO_ROMPIDO_PICO (CRITICA)
 -- 3) META_MENSAL_ULTRAPASSADA (BAIXA)
@@ -138,7 +137,7 @@ INSERT INTO leituras_hidrometro (id, sensor_id, pulsos_registrados, vazao_instan
 (11, 5, 0, 0.00, 310000.00, 0.87, '2026-11-01 00:05:00'),
 (12, 5, 24, 0.40, 314200.00, 0.20, '2026-11-09 03:30:00');
 
--- 5. Alertas Gerados pelos 3 Gatilhos (Página 9 do Guia)
+-- 5. Alertas gerados pelos gatilhos de monitoramento
 INSERT INTO alertas_consumo (id, imovel_id, leitura_id, tipo_alerta, severidade, mensagem, desperdicio_estimado_litros, resolvido, data_geracao) VALUES
 (1, 1, 4, 'VAZAMENTO_OCULTO_MADRUGADA', 'MEDIA', 'Água passando sem parar desde a meia-noite, cerca de 1,2 L/min. Confira a descarga e a boia da caixa.', 216.00, 0, '2026-11-08 04:12:00'),
 (2, 1, 5, 'META_MENSAL_ULTRAPASSADA', 'BAIXA', 'Você passou da meta do mês: já foram 10.150 litros, acima da meta de 10.000 litros.', 0.00, 0, '2026-11-09 18:01:00'),

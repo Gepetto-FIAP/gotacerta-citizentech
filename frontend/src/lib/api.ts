@@ -117,7 +117,7 @@ function query(params: Record<string, string | number | boolean | undefined>) {
   return texto ? `?${texto}` : "";
 }
 
-// Uma função por endpoint da página 14 do guia.
+// Cliente tipado para os endpoints da API RESTful.
 export const api = {
   login: (email: string, senha: string) =>
     requisicao<Sessao>("POST", "/api/auth/login", { email, senha }),

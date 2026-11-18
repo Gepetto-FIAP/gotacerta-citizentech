@@ -148,13 +148,13 @@ O valor em reais é **estimado**: litros ÷ 1.000 × tarifa de exemplo de R$ 8,5
 
 ## 🗂️ Estrutura
 
-| Pasta | Parte do case | Tecnologia |
+| Pasta | Módulo | Tecnologia |
 |---|---|---|
-| [`database/`](./database) | 1 · Banco de dados | SQL (SQLite e MySQL), 5 tabelas, 5 consultas |
-| [`backend/`](./backend) | 2 · API e 5 · Segurança | C# .NET 8, camadas Controller/Service/Repository, Swagger, BCrypt, JWT |
-| [`tests-and-docs/`](./tests-and-docs) | 3 · Testes | Plano de testes, Postman, suíte em Python |
-| [`frontend/`](./frontend) | 4 · Frontend | Next.js + Tailwind, mobile-first |
-| [`iot-simulator/`](./iot-simulator) | 6 · IoT | ESP32 no Wokwi, MQTT (HiveMQ), Node-RED |
+| [`database/`](./database) | Banco de dados | SQL (SQLite e MySQL), 5 tabelas, 5 consultas |
+| [`backend/`](./backend) | API e Segurança | C# .NET 8, camadas Controller/Service/Repository, Swagger, BCrypt, JWT |
+| [`tests-and-docs/`](./tests-and-docs) | Testes | Plano de testes, Postman, suíte em Python |
+| [`frontend/`](./frontend) | Frontend | Next.js + Tailwind, mobile-first |
+| [`iot-simulator/`](./iot-simulator) | IoT | ESP32 no Wokwi, MQTT (HiveMQ), Node-RED |
 
 ---
 
@@ -173,7 +173,7 @@ O valor em reais é **estimado**: litros ÷ 1.000 × tarifa de exemplo de R$ 8,5
 ## 🤖 Uso de IA generativa
 
 Usamos ferramentas de IA generativa (Google Gemini / Antigravity IDE e Claude) como apoio para:
-1. pesquisa bibliográfica, levantamento de referências do setor de saneamento e formatação do guia do grupo;
+1. pesquisa bibliográfica e levantamento de referências do setor de saneamento;
 2. padronização de templates de documentação (README, roteiro de testes e documentação da API);
 3. estrutura inicial do código e configuração do Docker.
 

@@ -1,7 +1,6 @@
 -- ============================================================================
 -- FIAP - GLOBAL SOLUTION 2026/2 - CITIZENTECH (3ESOA)
--- PROJETO: GOTA CERTA - AS 5 CONSULTAS DE USO PLANEJADAS (PÁGINA 13 DO GUIA)
--- RESPONSÁVEL: Antônio Aloísio Schappo Neto (RM556429)
+-- PROJETO: GOTA CERTA - CONSULTAS SQL DE USO REAL
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-# Segurança da Informação — Gota Certa (Parte 5)
+# Segurança da Informação — Gota Certa
 
 **Stack:** API C# .NET 8, EF Core, JWT Bearer, BCrypt
 

@@ -36,8 +36,8 @@ export function diaMes(dataIso: string) {
 }
 
 /**
- * Textos dos 3 gatilhos da página 9 do guia, em linguagem de morador.
- * `acao` é o texto do botão que chama PUT /api/alertas/{id}: vazamento se conserta, meta só se marca como vista.
+ * Textos e orientações para cada tipo de alerta exibido ao morador.
+ * `acao` é o texto do botão que chama PUT /api/alertas/{id}.
  */
 export const INFO_ALERTA: Record<
   TipoAlerta,

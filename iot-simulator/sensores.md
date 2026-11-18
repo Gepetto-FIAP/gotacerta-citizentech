@@ -1,7 +1,7 @@
 # Os sensores da Gota Certa
 **Simulação de IoT**
 
-Este texto responde ao critério de explicação da Parte 6: **qual sensor, o que mede e como influencia o sistema**. 
+Documentação técnica dos sensores do dispositivo de telemetria, grandezas medidas e regras de decisão.
 
 ---
 

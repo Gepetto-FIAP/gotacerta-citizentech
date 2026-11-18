@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 FIAP - Global Solution 2026/2 - CitizenTech (3ESOA)
-Projeto Gota Certa - Suíte Automatizada de Testes de API (Parte 3 - João)
-Alinhada às Páginas 14 e 21 do Guia do Grupo (10 casos cobrindo 200, 201, 400, 401, 403, 404).
+Projeto Gota Certa - Suíte Automatizada de Testes de API (10 casos cobrindo 200, 201, 400, 401, 403, 404).
 """
 
 import datetime

@@ -1,12 +1,12 @@
-# Parte 1 de 6 — Banco de Dados Relacional (2,0 Pontos)
-**Projeto Gota Certa — Telemetria Acessível para Hidrômetros Convencionais**
-*Responsável: Antônio Aloísio Schappo Neto (RM556429)*
+# Banco de Dados Relacional — Gota Certa
+
+Documentação do modelo relacional, regras de integridade e consultas SQL do sistema **Gota Certa**.
 
 ---
 
-## 1. Diagrama Entidade-Relacionamento (DER — 0,5 pt)
+## 1. Diagrama Entidade-Relacionamento (DER)
 
-O modelo relacional segue **exatamente as 5 tabelas definidas na Página 13 do Guia do Grupo**, projetado na **Terceira Forma Normal (3FN)** e focado 100% no acoplamento óptico não-invasivo (`LED_IR` + `FOTOTRANSISTOR`) sobre a relojoaria do hidrômetro:
+O banco de dados foi modelado na **Terceira Forma Normal (3FN)** e representa o fluxo completo de telemetria óptica não-invasiva (`LED_IR` e `FOTOTRANSISTOR`) acoplada à relojoaria dos hidrômetros monitorados:
 
 ```mermaid
 erDiagram
@@ -71,16 +71,21 @@ erDiagram
 
 ---
 
-## 2. Normalização (1FN, 2FN e 3FN) — "Saiba Responder" (Pág. 17)
-* **1ª Forma Normal (1FN):** Todos os campos contêm apenas valores atômicos (indivisíveis) e não existem colunas repetidas ou arrays.
-* **2ª Forma Normal (2FN):** Está na 1FN e todos os atributos não-chave dependem totalmente da chave primária (`id`) de sua respectiva tabela.
-* **3ª Forma Normal (3FN):** Está na 2FN e nenhuma coluna não-chave depende de outra coluna não-chave (sem dependências transitivas: dados cadastrais do usuário ficam em `usuarios`, localização/meta do hidrômetro em `imoveis`, calibração óptica em `sensores_iot`, medições temporais em `leituras_hidrometro` e ocorrências em `alertas_consumo`).
+## 2. Normalização e Integridade Relacional
+
+* **1ª Forma Normal (1FN):** Todos os campos contêm valores atômicos e não existem colunas repetidas ou multivaloradas.
+* **2ª Forma Normal (2FN):** Todos os atributos não-chave dependem funcionalmente da chave primária (`id`) de sua respectiva tabela.
+* **3ª Forma Normal (3FN):** Não há dependências transitivas entre colunas não-chave: dados cadastrais do usuário ficam em `usuarios`, localização e meta mensal do hidrômetro em `imoveis`, parâmetros físicos de calibração em `sensores_iot`, leituras temporais em `leituras_hidrometro` e alertas gerados em `alertas_consumo`.
 
 ---
 
-## 3. Como Executar os Scripts SQL (0,5 pt + 1,0 pt)
+## 3. Como Executar os Scripts SQL
 
+### SQLite3 (Execução local)
 ```bash
 sqlite3 gotacerta_test.db < database/01_schema_seed.sql
 sqlite3 -header -column gotacerta_test.db < database/02_consultas_uso.sql
 ```
+
+### MySQL 8.0 (Container Docker)
+Ao iniciar o serviço `mysql` via `docker compose up -d`, o arquivo `database/01_schema_seed_mysql.sql` é executado automaticamente na inicialização do container.
