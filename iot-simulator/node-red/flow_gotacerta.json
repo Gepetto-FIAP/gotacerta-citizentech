@@ -4,7 +4,7 @@
         "type": "tab",
         "label": "Gota Certa · IoT",
         "disabled": false,
-        "info": "ESP32 no Wokwi → MQTT (HiveMQ) → este fluxo → POST /api/leituras da API C#.\nParte 6 · Luiz."
+        "info": "ESP32 no Wokwi → MQTT (HiveMQ) → este fluxo → POST /api/leituras da API C#."
     },
     {
         "id": "f996754f7529e264",

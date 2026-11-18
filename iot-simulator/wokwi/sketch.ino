@@ -1,5 +1,5 @@
 /*
-  GOTA CERTA · Dispositivo do hidrômetro (FIAP GS 2026/2 · Parte 6 · Luiz)
+  GOTA CERTA · Dispositivo de telemetria do hidrômetro (FIAP GS 2026/2)
 
   SENSOR 1 · Leitor óptico (LED infravermelho + fototransistor): mede a ÁGUA.
      O LED ilumina o ponteiro de litros e o fototransistor mede a luz que volta.

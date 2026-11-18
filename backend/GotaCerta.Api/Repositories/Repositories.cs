@@ -8,6 +8,7 @@ public interface IImovelRepository
 {
     Task<List<Imovel>> GetAllAsync(string? bairro = null, int? usuarioId = null);
     Task<Imovel?> GetByIdAsync(int id);
+    Task<bool> ExistsByHidrometroAsync(string numeroSerieHidrometro);
     Task<Imovel> CreateAsync(Imovel imovel);
     Task<Imovel> UpdateAsync(Imovel imovel);
     Task<bool> DeleteAsync(int id);
@@ -62,6 +63,12 @@ public class ImovelRepository : IImovelRepository
             .Include(i => i.Sensores)
             .Include(i => i.Alertas)
             .FirstOrDefaultAsync(i => i.Id == id);
+    }
+
+    public async Task<bool> ExistsByHidrometroAsync(string numeroSerieHidrometro)
+    {
+        var serie = numeroSerieHidrometro.Trim().ToLower();
+        return await _context.Imoveis.AnyAsync(i => i.NumeroSerieHidrometro.ToLower() == serie);
     }
 
     public async Task<Imovel> CreateAsync(Imovel imovel)

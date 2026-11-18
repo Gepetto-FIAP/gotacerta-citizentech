@@ -64,9 +64,7 @@ public record CreateSensorDto(
 );
 
 /// <summary>
-/// Aceita tanto a nomenclatura sugerida na Página 14 do Guia do Grupo
-/// ("pulsosUltimoMinuto", "leituraAcumuladaLitros", "dataHora", "intensidadeLuz")
-/// quanto os nomes das colunas do banco ("pulsosRegistrados", "vazaoInstantaneaLpm", "volumeAcumuladoLitros").
+/// Payload de telemetria enviado pelo dispositivo IoT ou Node-RED.
 /// </summary>
 public class CreateLeituraIoTDto
 {

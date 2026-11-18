@@ -11,7 +11,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace GotaCerta.Api.Services;
 
 /// <summary>
-/// Utilitário de Hash de Senha com BCrypt (Página 15 Decisão 6 e Página 19 Cartão da Vitória).
+/// Utilitário de Hash de Senha com BCrypt.
 /// Aplica Salt automático e fator de custo (WorkFactor = 11), nunca salvando senha em texto puro.
 /// </summary>
 public static class PasswordHasher
@@ -126,7 +126,7 @@ public interface ITelemetriaService
 }
 
 /// <summary>
-/// Motor de Regras da Gota Certa (Páginas 5, 6, 8, 9 e 14 do Guia do Grupo).
+/// Motor de Regras de Telemetria da Gota Certa.
 /// Converte pulsos em vazão (L/min) e avalia os 3 gatilhos de alerta:
 /// 1) VAZAMENTO_OCULTO_MADRUGADA (MEDIA)
 /// 2) CANO_ROMPIDO_PICO (CRITICA)
@@ -134,7 +134,7 @@ public interface ITelemetriaService
 /// </summary>
 public class TelemetriaService : ITelemetriaService
 {
-    private const decimal TarifaPadraoPorM3 = 8.50m; // Página 5: valor = litros / 1000 * tarifa por m³
+    private const decimal TarifaPadraoPorM3 = 8.50m; // valor = litros / 1000 * tarifa por m³
 
     private readonly ISensorRepository _sensorRepo;
     private readonly ILeituraAlertaRepository _leituraAlertaRepo;
@@ -160,12 +160,12 @@ public class TelemetriaService : ITelemetriaService
         decimal volumeAcumulado = dto.LeituraAcumuladaLitros ?? dto.VolumeAcumuladoLitros ?? 0m;
         var horarioLeitura = dto.DataHora ?? dto.DataHoraLeitura ?? DateTime.UtcNow;
 
-        // Se o simulador não informar o acumulado explícito, soma ao último acumulado salvo
+        // Se o simulador não informar o acumulado explícito, soma ao último acumulado salvo (por ordem de chegada Id)
         if (volumeAcumulado <= 0m)
         {
             var ultimaLeitura = await _context.LeiturasHidrometro
                 .Where(l => l.SensorId == sensor.Id)
-                .OrderByDescending(l => l.DataHoraLeitura)
+                .OrderByDescending(l => l.Id)
                 .FirstOrDefaultAsync();
             decimal baseAnterior = ultimaLeitura?.VolumeAcumuladoLitros ?? 100000m;
             volumeAcumulado = baseAnterior + (pulsos * sensor.FatorCalibracaoPulsosLitro);
@@ -186,7 +186,7 @@ public class TelemetriaService : ITelemetriaService
         var tiposDisparados = new List<string>();
         var mensagens = new List<string>();
 
-        // GATILHO 1 (Página 9): Surto de vazão / Cano rompido (vazão > limite_vazao_alerta_lpm)
+        // GATILHO 1: Surto de vazão / Cano rompido (vazão > limite_vazao_alerta_lpm)
         if (vazaoLpm > sensor.LimiteVazaoAlertaLpm)
         {
             var desperdicioHora = Math.Round(vazaoLpm * 60m, 2);
@@ -204,7 +204,7 @@ public class TelemetriaService : ITelemetriaService
             mensagens.Add(alerta.Mensagem);
         }
 
-        // GATILHO 2 (Página 9): Vazamento oculto de madrugada (00h às 05h, fluxo >= 0,1 L/min para pegar descarga pingando de 0,33 L/min)
+        // GATILHO 2: Vazamento oculto de madrugada (00h às 05h, fluxo >= 0,1 L/min para pegar descarga pingando de 0,33 L/min)
         if (horarioLeitura.Hour >= 0 && horarioLeitura.Hour <= 5 && vazaoLpm >= 0.1m && vazaoLpm <= sensor.LimiteVazaoAlertaLpm)
         {
             var desperdicioNoite = Math.Round(vazaoLpm * 60m * 3m, 2);
@@ -222,7 +222,7 @@ public class TelemetriaService : ITelemetriaService
             mensagens.Add(alerta.Mensagem);
         }
 
-        // GATILHO 3 (Página 9): Meta do mês estourada (consumo no mês > meta_consumo_mensal_litros)
+        // GATILHO 3: Meta do mês estourada (consumo no mês > meta_consumo_mensal_litros)
         if (sensor.Imovel is not null)
         {
             var leiturasImovel = await _leituraAlertaRepo.GetLeiturasByImovelAsync(sensor.ImovelId);
@@ -279,8 +279,9 @@ public class TelemetriaService : ITelemetriaService
         if (imovel is null) return null;
 
         var leituras = await _leituraAlertaRepo.GetLeiturasByImovelAsync(imovelId);
-        decimal vazaoAtual = leituras.LastOrDefault()?.VazaoInstantaneaLpm ?? 0m;
-        decimal leituraMostrador = leituras.LastOrDefault()?.VolumeAcumuladoLitros ?? 0m;
+        var ultimaRecebida = leituras.OrderByDescending(l => l.Id).FirstOrDefault();
+        decimal vazaoAtual = ultimaRecebida?.VazaoInstantaneaLpm ?? 0m;
+        decimal leituraMostrador = ultimaRecebida?.VolumeAcumuladoLitros ?? 0m;
         decimal consumoMes = leituras.Count > 1
             ? Math.Max(0m, leituras.Max(l => l.VolumeAcumuladoLitros) - leituras.Min(l => l.VolumeAcumuladoLitros))
             : 0m;
@@ -289,7 +290,7 @@ public class TelemetriaService : ITelemetriaService
             ? Math.Round((consumoMes / imovel.MetaConsumoMensalLitros) * 100m, 1)
             : 0m;
 
-        // Fórmula da Página 5: valor = litros / 1000 * tarifa por m³
+        // Fórmula de estimativa: valor = litros / 1000 * tarifa por m³
         decimal valorReais = Math.Round((consumoMes / 1000m) * TarifaPadraoPorM3, 2);
 
         var alertasResumo = imovel.Alertas
@@ -323,16 +324,32 @@ public class TelemetriaService : ITelemetriaService
     public async Task<List<ConsumoDiarioItemDto>> ObterHistoricoDiarioImovelAsync(int imovelId)
     {
         var leituras = await _leituraAlertaRepo.GetLeiturasByImovelAsync(imovelId);
-        return leituras
+        var gruposPorDia = leituras
             .GroupBy(l => l.DataHoraLeitura.ToString("yyyy-MM-dd"))
-            .Select(g => new ConsumoDiarioItemDto(
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        var resultado = new List<ConsumoDiarioItemDto>();
+        decimal? acumuladoDiaAnterior = null;
+
+        foreach (var g in gruposPorDia)
+        {
+            decimal minDia = g.Min(x => x.VolumeAcumuladoLitros);
+            decimal maxDia = g.Max(x => x.VolumeAcumuladoLitros);
+            decimal baseReferencia = acumuladoDiaAnterior ?? minDia;
+            decimal consumoDia = Math.Max(maxDia - minDia, maxDia - baseReferencia);
+
+            resultado.Add(new ConsumoDiarioItemDto(
                 g.Key,
-                g.Count() > 1 ? Math.Max(0m, g.Max(x => x.VolumeAcumuladoLitros) - g.Min(x => x.VolumeAcumuladoLitros)) : g.Sum(x => x.PulsosRegistrados),
+                Math.Round(Math.Max(0m, consumoDia), 2),
                 g.Max(x => x.VazaoInstantaneaLpm),
                 g.Sum(x => x.PulsosRegistrados)
-            ))
-            .OrderBy(x => x.Data)
-            .ToList();
+            ));
+
+            acumuladoDiaAnterior = Math.Max(acumuladoDiaAnterior ?? 0m, maxDia);
+        }
+
+        return resultado;
     }
 
     public async Task<List<BairroAlertaResumoDto>> ObterAlertasPorBairroAsync()

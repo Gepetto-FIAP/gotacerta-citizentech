@@ -1,5 +1,5 @@
 /**
- * Mostrador do hidrômetro, como na pág. 7 do guia: rolos pretos = metros cúbicos (o que vai na conta),
+ * Mostrador do hidrômetro: rolos pretos = metros cúbicos (o que vai na conta),
  * rolos vermelhos = litros. Ex.: 1.234.582 L → [0 1 2 3 4] m³ + [5 8 2] litros.
  */
 export function Mostrador({ litros }: { litros: number }) {

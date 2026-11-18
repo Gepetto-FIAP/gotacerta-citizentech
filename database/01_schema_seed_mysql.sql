@@ -1,8 +1,7 @@
 -- ============================================================================
 -- FIAP - GLOBAL SOLUTION 2026/2 - CITIZENTECH (3ESOA)
 -- PROJETO: GOTA CERTA - TELEMETRIA ACESSÍVEL PARA HIDRÔMETROS CONVENCIONAIS
--- ARQUIVO: 01_schema_seed_mysql.sql (MySQL 8.0 - Modelo Oficial da Página 13)
--- RESPONSÁVEL: Antônio Aloísio Schappo Neto (RM556429)
+-- ARQUIVO: 01_schema_seed_mysql.sql (MySQL 8.0)
 -- ============================================================================
 
 SET NAMES utf8mb4;

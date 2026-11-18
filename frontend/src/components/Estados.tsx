@@ -1,7 +1,6 @@
 import { Icone } from "./Icone";
 
-// Os 4 estados que toda tela precisa mostrar (cartão do Danilo, pág. 20):
-// carregando, vazio, erro de conexão e sucesso (o sucesso é o próprio conteúdo + os avisos/toasts).
+// Componentes de estado de interface: carregando, vazio, erro de conexão e avisos.
 
 export function Carregando({ linhas = 3, rotulo = "Carregando…" }: { linhas?: number; rotulo?: string }) {
   return (

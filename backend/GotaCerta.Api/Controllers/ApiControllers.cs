@@ -37,7 +37,7 @@ public abstract class ApiControllerBase : ControllerBase
 }
 
 /// <summary>
-/// Endpoints de Autenticação e Segurança (Parte 5 - Vitória: BCrypt + JWT RBAC).
+/// Endpoints de Autenticação e Segurança (BCrypt + JWT RBAC).
 /// Rotas públicas: é aqui que o token nasce.
 /// </summary>
 [ApiController]
@@ -49,7 +49,7 @@ public class AuthController : ControllerBase
     public AuthController(IAuthService authService) => _authService = authService;
 
     /// <summary>
-    /// [1/14] POST /api/auth/register — Criar conta (senha vira hash BCrypt).
+    /// POST /api/auth/register — Criar conta (senha vira hash BCrypt).
     /// </summary>
     [HttpPost("register")]
     [ProducesResponseType(typeof(AuthResponseDto), StatusCodes.Status201Created)]
@@ -72,7 +72,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// [2/14] POST /api/auth/login — Entrar; devolve token JWT.
+    /// POST /api/auth/login — Entrar; devolve token JWT.
     /// Limite de tentativas (política "login" no Program.cs): acima disso devolve 429 (anti força bruta).
     /// </summary>
     [HttpPost("login")]
@@ -94,8 +94,8 @@ public class AuthController : ControllerBase
 }
 
 /// <summary>
-/// Endpoints de Imóveis, Dashboard e Histórico (Páginas 14 e 17 do Guia do Grupo — Antônio).
-/// Protegidos pela Regra do Dono sem token = 401; token de outro dono = 403.
+/// Endpoints de Imóveis, Dashboard e Histórico de Consumo.
+/// Protegidos pela Regra do Dono: sem token = 401; token de outro dono = 403.
 /// </summary>
 [ApiController]
 [Route("api/imoveis")]
@@ -114,7 +114,7 @@ public class ImoveisController : ApiControllerBase
     }
 
     /// <summary>
-    /// [3/14] GET /api/imoveis — MORADOR vê só os seus imóveis; ADMIN vê todos (e pode filtrar por usuarioId ou bairro).
+    /// GET /api/imoveis — MORADOR vê só os seus imóveis; ADMIN vê todos (e pode filtrar por usuarioId ou bairro).
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(List<Imovel>), StatusCodes.Status200OK)]
@@ -148,7 +148,7 @@ public class ImoveisController : ApiControllerBase
     }
 
     /// <summary>
-    /// [10/14] GET /api/imoveis/{id}/dashboard — Vazão atual, consumo do mês (L e R$), meta do mês e alertas (só o dono ou ADMIN).
+    /// GET /api/imoveis/{id}/dashboard — Vazão atual, consumo do mês (L e R$), meta do mês e alertas (só o dono ou ADMIN).
     /// </summary>
     [HttpGet("{id:int}/dashboard")]
     [ProducesResponseType(typeof(ImovelDashboardDto), StatusCodes.Status200OK)]
@@ -170,7 +170,7 @@ public class ImoveisController : ApiControllerBase
     }
 
     /// <summary>
-    /// [11/14] GET /api/imoveis/{id}/historico — Consumo agrupado por dia para gráficos (só o dono ou ADMIN).
+    /// GET /api/imoveis/{id}/historico — Consumo agrupado por dia para gráficos (só o dono ou ADMIN).
     /// </summary>
     [HttpGet("{id:int}/historico")]
     [ProducesResponseType(typeof(List<ConsumoDiarioItemDto>), StatusCodes.Status200OK)]
@@ -189,7 +189,7 @@ public class ImoveisController : ApiControllerBase
     }
 
     /// <summary>
-    /// [4/14] POST /api/imoveis — Cadastrar imóvel/hidrômetro.
+    /// POST /api/imoveis — Cadastrar imóvel/hidrômetro.
     /// MORADOR sempre cadastra para si mesmo; só ADMIN pode informar outro usuarioId.
     /// </summary>
     [HttpPost]
@@ -204,6 +204,9 @@ public class ImoveisController : ApiControllerBase
         var donoId = EhAdmin() ? dto.UsuarioId : UsuarioLogadoId();
         if (donoId is null)
             return Unauthorized();
+
+        if (await _repo.ExistsByHidrometroAsync(dto.NumeroSerieHidrometro))
+            return Conflict(new { erro = $"Já existe um imóvel cadastrado com o hidrômetro '{dto.NumeroSerieHidrometro.Trim()}'." });
 
         var novoImovel = new Imovel
         {
@@ -221,7 +224,7 @@ public class ImoveisController : ApiControllerBase
     }
 
     /// <summary>
-    /// [5/14] PUT /api/imoveis/{id} — Alterar dados e meta do mês (só o dono ou ADMIN).
+    /// PUT /api/imoveis/{id} — Alterar dados e meta do mês (só o dono ou ADMIN).
     /// </summary>
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(Imovel), StatusCodes.Status200OK)]
@@ -248,7 +251,7 @@ public class ImoveisController : ApiControllerBase
     }
 
     /// <summary>
-    /// [6/14] DELETE /api/imoveis/{id} — Remover imóvel (Requer perfil ADMIN no Token JWT — RBAC Parte 5).
+    /// DELETE /api/imoveis/{id} — Remover imóvel (Requer perfil ADMIN no Token JWT).
     /// </summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "ADMIN")]
@@ -265,7 +268,7 @@ public class ImoveisController : ApiControllerBase
 }
 
 /// <summary>
-/// Endpoints de Sensores IoT, Leituras de Telemetria, Alertas e Painel do Gestor (Página 14 do Guia).
+/// Endpoints de Sensores IoT, Leituras de Telemetria, Alertas e Painel do Gestor.
 /// Protegidos pela Regra do Dono. Única rota pública: POST /api/leituras (o simulador/dispositivo não tem login).
 /// </summary>
 [ApiController]
@@ -339,7 +342,7 @@ public class TelemetriaAlertasController : ApiControllerBase
     }
 
     /// <summary>
-    /// [7/14] POST /api/sensores — Registrar sensor no imóvel (só no imóvel do próprio usuário, ou ADMIN).
+    /// POST /api/sensores — Registrar sensor no imóvel (só no imóvel do próprio usuário, ou ADMIN).
     /// </summary>
     [HttpPost("sensores")]
     [ProducesResponseType(typeof(SensorIoT), StatusCodes.Status201Created)]
@@ -352,6 +355,9 @@ public class TelemetriaAlertasController : ApiControllerBase
 
         var erro = await ValidarAcessoAoImovelAsync(dto.ImovelId);
         if (erro is not null) return erro;
+
+        if (await _sensorRepo.GetByCodigoAsync(dto.CodigoDispositivo.Trim()) is not null)
+            return Conflict(new { erro = $"Já existe um sensor cadastrado com o código '{dto.CodigoDispositivo.Trim()}'." });
 
         var sensor = new SensorIoT
         {
@@ -368,7 +374,7 @@ public class TelemetriaAlertasController : ApiControllerBase
     }
 
     /// <summary>
-    /// [8/14] DELETE /api/sensores/{id} — Remover sensor (só se o imóvel do sensor for do usuário, ou ADMIN).
+    /// DELETE /api/sensores/{id} — Remover sensor (só se o imóvel do sensor for do usuário, ou ADMIN).
     /// </summary>
     [HttpDelete("sensores/{id:int}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -412,9 +418,8 @@ public class TelemetriaAlertasController : ApiControllerBase
     }
 
     /// <summary>
-    /// [9/14] POST /api/leituras — Receber leitura do Simulador do Luiz e rodar os 3 gatilhos (Vazamento Oculto, Cano Rompido e Meta Mensal).
-    /// Rota PÚBLICA de propósito: o dispositivo IoT não faz login.
-    /// Diferencial (Página 10): validar o header X-Device-Signature (HMAC) aqui para aceitar só leituras assinadas.
+    /// POST /api/leituras — Receber leitura de telemetria e rodar os 3 gatilhos (Vazamento Oculto, Cano Rompido e Meta Mensal).
+    /// Rota pública para envio pelos dispositivos IoT.
     /// </summary>
     [HttpPost("leituras")]
     [AllowAnonymous]
@@ -438,7 +443,7 @@ public class TelemetriaAlertasController : ApiControllerBase
     }
 
     /// <summary>
-    /// [12/14] GET /api/alertas — Alertas de vazamento e meta estourada. MORADOR vê só os alertas dos seus imóveis.
+    /// GET /api/alertas — Alertas de vazamento e meta estourada. MORADOR vê só os alertas dos seus imóveis.
     /// </summary>
     [HttpGet("alertas")]
     [ProducesResponseType(typeof(List<AlertaConsumo>), StatusCodes.Status200OK)]
@@ -464,7 +469,7 @@ public class TelemetriaAlertasController : ApiControllerBase
     }
 
     /// <summary>
-    /// [13/14] PUT /api/alertas/{id} — Confirmar reparo (marca resolvido = true). Só o dono do imóvel do alerta, ou ADMIN.
+    /// PUT /api/alertas/{id} — Confirmar reparo (marca resolvido = true). Só o dono do imóvel do alerta, ou ADMIN.
     /// </summary>
     [HttpPut("alertas/{id:int}")]
     [HttpPut("alertas/{id:int}/resolver")]
@@ -501,7 +506,7 @@ public class TelemetriaAlertasController : ApiControllerBase
     }
 
     /// <summary>
-    /// [14/14] GET /api/bairros/alertas — Alertas e consumo consolidado por bairro (Painel do Gestor — apenas ADMIN).
+    /// GET /api/bairros/alertas — Alertas e consumo consolidado por bairro (Painel do Gestor — apenas ADMIN).
     /// </summary>
     [HttpGet("bairros/alertas")]
     [Authorize(Roles = "ADMIN")]

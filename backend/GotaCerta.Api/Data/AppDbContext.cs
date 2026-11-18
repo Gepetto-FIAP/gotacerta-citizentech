@@ -196,7 +196,27 @@ public static class DbInitializer
             DataHoraLeitura = new DateTime(2026, 11, 1, 0, 5, 0, DateTimeKind.Utc)
         };
 
-        var lMariaMadrugada = new LeituraHidrometro
+        var lMariaMadrugada1 = new LeituraHidrometro
+        {
+            SensorId = sensorMariaFoto.Id,
+            PulsosRegistrados = 72,
+            VazaoInstantaneaLpm = 1.20m,
+            VolumeAcumuladoLitros = 1230100.00m,
+            IntensidadeLuz = 0.18m,
+            DataHoraLeitura = new DateTime(2026, 11, 8, 2, 0, 0, DateTimeKind.Utc)
+        };
+
+        var lMariaMadrugada2 = new LeituraHidrometro
+        {
+            SensorId = sensorMariaFoto.Id,
+            PulsosRegistrados = 72,
+            VazaoInstantaneaLpm = 1.20m,
+            VolumeAcumuladoLitros = 1230172.00m,
+            IntensidadeLuz = 0.17m,
+            DataHoraLeitura = new DateTime(2026, 11, 8, 3, 0, 0, DateTimeKind.Utc)
+        };
+
+        var lMariaMadrugada3 = new LeituraHidrometro
         {
             SensorId = sensorMariaFoto.Id,
             PulsosRegistrados = 72,
@@ -226,6 +246,16 @@ public static class DbInitializer
             DataHoraLeitura = new DateTime(2026, 11, 1, 0, 5, 0, DateTimeKind.Utc)
         };
 
+        var lEscolaMeioDia = new LeituraHidrometro
+        {
+            SensorId = sensorEscola.Id,
+            PulsosRegistrados = 600,
+            VazaoInstantaneaLpm = 10.00m,
+            VolumeAcumuladoLitros = 542100.00m,
+            IntensidadeLuz = 0.80m,
+            DataHoraLeitura = new DateTime(2026, 11, 8, 12, 0, 0, DateTimeKind.Utc)
+        };
+
         var lEscolaPico = new LeituraHidrometro
         {
             SensorId = sensorEscola.Id,
@@ -236,14 +266,58 @@ public static class DbInitializer
             DataHoraLeitura = new DateTime(2026, 11, 8, 13, 0, 0, DateTimeKind.Utc)
         };
 
-        context.LeiturasHidrometro.AddRange(lMariaInicio, lMariaMadrugada, lMariaMeta, lEscolaInicio, lEscolaPico);
+        var lPadariaInicio = new LeituraHidrometro
+        {
+            SensorId = sensorPadaria.Id,
+            PulsosRegistrados = 0,
+            VazaoInstantaneaLpm = 0.00m,
+            VolumeAcumuladoLitros = 800000.00m,
+            IntensidadeLuz = 0.86m,
+            DataHoraLeitura = new DateTime(2026, 11, 1, 0, 5, 0, DateTimeKind.Utc)
+        };
+
+        var lPadariaMeta = new LeituraHidrometro
+        {
+            SensorId = sensorPadaria.Id,
+            PulsosRegistrados = 540,
+            VazaoInstantaneaLpm = 9.00m,
+            VolumeAcumuladoLitros = 821400.00m,
+            IntensidadeLuz = 0.79m,
+            DataHoraLeitura = new DateTime(2026, 11, 8, 16, 0, 0, DateTimeKind.Utc)
+        };
+
+        var lJoaoInicio = new LeituraHidrometro
+        {
+            SensorId = sensorJoao.Id,
+            PulsosRegistrados = 0,
+            VazaoInstantaneaLpm = 0.00m,
+            VolumeAcumuladoLitros = 310000.00m,
+            IntensidadeLuz = 0.87m,
+            DataHoraLeitura = new DateTime(2026, 11, 1, 0, 5, 0, DateTimeKind.Utc)
+        };
+
+        var lJoaoMadrugada = new LeituraHidrometro
+        {
+            SensorId = sensorJoao.Id,
+            PulsosRegistrados = 24,
+            VazaoInstantaneaLpm = 0.40m,
+            VolumeAcumuladoLitros = 314200.00m,
+            IntensidadeLuz = 0.20m,
+            DataHoraLeitura = new DateTime(2026, 11, 9, 3, 30, 0, DateTimeKind.Utc)
+        };
+
+        context.LeiturasHidrometro.AddRange(
+            lMariaInicio, lMariaMadrugada1, lMariaMadrugada2, lMariaMadrugada3, lMariaMeta,
+            lEscolaInicio, lEscolaMeioDia, lEscolaPico,
+            lPadariaInicio, lPadariaMeta,
+            lJoaoInicio, lJoaoMadrugada);
         context.SaveChanges();
 
         context.AlertasConsumo.AddRange(
             new AlertaConsumo
             {
                 ImovelId = imovelMaria.Id,
-                LeituraId = lMariaMadrugada.Id,
+                LeituraId = lMariaMadrugada3.Id,
                 TipoAlerta = "VAZAMENTO_OCULTO_MADRUGADA",
                 Severidade = "MEDIA",
                 Mensagem = "Água passando sem parar desde a meia-noite, cerca de 1,2 L/min. Confira a descarga e a boia da caixa.",
@@ -266,8 +340,28 @@ public static class DbInitializer
                 LeituraId = lEscolaPico.Id,
                 TipoAlerta = "CANO_ROMPIDO_PICO",
                 Severidade = "CRITICA",
-                Mensagem = "Surto de vazão de 58,5 L/min ultrapassou o limite do imóvel (45,0 L/min). Possível cano rompido!",
+                Mensagem = "Surto de vazão de 58,5 L/min ultrapassou o limite do imóvel (45,0 L/min). Possível cano rompido ou torneira aberta!",
                 DesperdicioEstimadoLitros = 3510.00m,
+                Resolvido = false
+            },
+            new AlertaConsumo
+            {
+                ImovelId = imovelPadaria.Id,
+                LeituraId = lPadariaMeta.Id,
+                TipoAlerta = "META_MENSAL_ULTRAPASSADA",
+                Severidade = "BAIXA",
+                Mensagem = "Consumo acumulado no mês atingiu 21.400 litros, ultrapassando a meta de 20.000 litros.",
+                DesperdicioEstimadoLitros = 0.00m,
+                Resolvido = false
+            },
+            new AlertaConsumo
+            {
+                ImovelId = imovelJoao.Id,
+                LeituraId = lJoaoMadrugada.Id,
+                TipoAlerta = "VAZAMENTO_OCULTO_MADRUGADA",
+                Severidade = "MEDIA",
+                Mensagem = "Fluxo contínuo de 0,40 L/min na madrugada (24 L/h). Verifique se há válvula de descarga pingando.",
+                DesperdicioEstimadoLitros = 96.00m,
                 Resolvido = false
             }
         );

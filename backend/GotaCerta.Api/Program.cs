@@ -35,7 +35,7 @@ builder.Services.AddScoped<ILeituraAlertaRepository, LeituraAlertaRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ITelemetriaService, TelemetriaService>();
 
-// 3. Configuração de Autenticação JWT Bearer e Controle de Acesso (RBAC - Parte 5 Vitória)
+// 3. Configuração de Autenticação JWT Bearer e Controle de Acesso (RBAC)
 // A chave é lida na MESMA ordem usada pelo AuthService (variável de ambiente > appsettings > padrão de dev).
 // Antes, o Program.cs ignorava a variável JWT_SECRET_KEY e o AuthService não: se ela fosse definida
 // (ex.: no Docker), os tokens seriam assinados com uma chave e validados com outra, e tudo daria 401.
