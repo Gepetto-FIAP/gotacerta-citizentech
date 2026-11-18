@@ -205,6 +205,9 @@ public class ImoveisController : ApiControllerBase
         if (donoId is null)
             return Unauthorized();
 
+        if (await _repo.ExistsByHidrometroAsync(dto.NumeroSerieHidrometro))
+            return Conflict(new { erro = $"Já existe um imóvel cadastrado com o hidrômetro '{dto.NumeroSerieHidrometro.Trim()}'." });
+
         var novoImovel = new Imovel
         {
             UsuarioId = donoId.Value,
@@ -352,6 +355,9 @@ public class TelemetriaAlertasController : ApiControllerBase
 
         var erro = await ValidarAcessoAoImovelAsync(dto.ImovelId);
         if (erro is not null) return erro;
+
+        if (await _sensorRepo.GetByCodigoAsync(dto.CodigoDispositivo.Trim()) is not null)
+            return Conflict(new { erro = $"Já existe um sensor cadastrado com o código '{dto.CodigoDispositivo.Trim()}'." });
 
         var sensor = new SensorIoT
         {

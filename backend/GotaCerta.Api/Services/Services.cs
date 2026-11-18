@@ -160,12 +160,12 @@ public class TelemetriaService : ITelemetriaService
         decimal volumeAcumulado = dto.LeituraAcumuladaLitros ?? dto.VolumeAcumuladoLitros ?? 0m;
         var horarioLeitura = dto.DataHora ?? dto.DataHoraLeitura ?? DateTime.UtcNow;
 
-        // Se o simulador não informar o acumulado explícito, soma ao último acumulado salvo
+        // Se o simulador não informar o acumulado explícito, soma ao último acumulado salvo (por ordem de chegada Id)
         if (volumeAcumulado <= 0m)
         {
             var ultimaLeitura = await _context.LeiturasHidrometro
                 .Where(l => l.SensorId == sensor.Id)
-                .OrderByDescending(l => l.DataHoraLeitura)
+                .OrderByDescending(l => l.Id)
                 .FirstOrDefaultAsync();
             decimal baseAnterior = ultimaLeitura?.VolumeAcumuladoLitros ?? 100000m;
             volumeAcumulado = baseAnterior + (pulsos * sensor.FatorCalibracaoPulsosLitro);
@@ -279,8 +279,9 @@ public class TelemetriaService : ITelemetriaService
         if (imovel is null) return null;
 
         var leituras = await _leituraAlertaRepo.GetLeiturasByImovelAsync(imovelId);
-        decimal vazaoAtual = leituras.LastOrDefault()?.VazaoInstantaneaLpm ?? 0m;
-        decimal leituraMostrador = leituras.LastOrDefault()?.VolumeAcumuladoLitros ?? 0m;
+        var ultimaRecebida = leituras.OrderByDescending(l => l.Id).FirstOrDefault();
+        decimal vazaoAtual = ultimaRecebida?.VazaoInstantaneaLpm ?? 0m;
+        decimal leituraMostrador = ultimaRecebida?.VolumeAcumuladoLitros ?? 0m;
         decimal consumoMes = leituras.Count > 1
             ? Math.Max(0m, leituras.Max(l => l.VolumeAcumuladoLitros) - leituras.Min(l => l.VolumeAcumuladoLitros))
             : 0m;
@@ -323,16 +324,32 @@ public class TelemetriaService : ITelemetriaService
     public async Task<List<ConsumoDiarioItemDto>> ObterHistoricoDiarioImovelAsync(int imovelId)
     {
         var leituras = await _leituraAlertaRepo.GetLeiturasByImovelAsync(imovelId);
-        return leituras
+        var gruposPorDia = leituras
             .GroupBy(l => l.DataHoraLeitura.ToString("yyyy-MM-dd"))
-            .Select(g => new ConsumoDiarioItemDto(
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        var resultado = new List<ConsumoDiarioItemDto>();
+        decimal? acumuladoDiaAnterior = null;
+
+        foreach (var g in gruposPorDia)
+        {
+            decimal minDia = g.Min(x => x.VolumeAcumuladoLitros);
+            decimal maxDia = g.Max(x => x.VolumeAcumuladoLitros);
+            decimal baseReferencia = acumuladoDiaAnterior ?? minDia;
+            decimal consumoDia = Math.Max(maxDia - minDia, maxDia - baseReferencia);
+
+            resultado.Add(new ConsumoDiarioItemDto(
                 g.Key,
-                g.Count() > 1 ? Math.Max(0m, g.Max(x => x.VolumeAcumuladoLitros) - g.Min(x => x.VolumeAcumuladoLitros)) : g.Sum(x => x.PulsosRegistrados),
+                Math.Round(Math.Max(0m, consumoDia), 2),
                 g.Max(x => x.VazaoInstantaneaLpm),
                 g.Sum(x => x.PulsosRegistrados)
-            ))
-            .OrderBy(x => x.Data)
-            .ToList();
+            ));
+
+            acumuladoDiaAnterior = Math.Max(acumuladoDiaAnterior ?? 0m, maxDia);
+        }
+
+        return resultado;
     }
 
     public async Task<List<BairroAlertaResumoDto>> ObterAlertasPorBairroAsync()
