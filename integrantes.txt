@@ -12,7 +12,7 @@ INTEGRANTES DO GRUPO:
 5. João Bento                   - RM: 559081 (Testes, Documentação e Vídeo)
 
 LINK DO VÍDEO PITCH (PÚBLICO - ATÉ 3 MINUTOS):
-https://youtu.be/[INSERIR_LINK_PUBLICO_AQUI_ANTES_DE_ENTREGAR]
+https://youtu.be/aNADoO9dEHk
 
 REPOSITÓRIO GITHUB DO PROJETO:
 https://github.com/Gepetto-FIAP/gotacerta-citizentech

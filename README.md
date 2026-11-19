@@ -5,7 +5,7 @@ FIAP · Global Solution 2026/2 · CitizenTech · Turma 3ESOA
 
 > "Hoje o vazamento só aparece na conta. Com a Gota Certa, ele aparece no celular, no mesmo dia."
 
-- **Vídeo pitch:** `[INSERIR LINK]`
+- **Vídeo pitch:** https://youtu.be/aNADoO9dEHk
 - **Simulação do dispositivo no Wokwi:** https://wokwi.com/projects/480800487744010241
 
 ---
